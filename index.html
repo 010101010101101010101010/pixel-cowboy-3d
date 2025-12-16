@@ -7,12 +7,12 @@
 <style>
 html,body{margin:0;padding:0;overflow:hidden;background:#000}
 button{
-  padding:10px 12px;
+  padding:10px;
   border:none;
   border-radius:8px;
   font-size:14px;
 }
-#ui{position:fixed;top:10px;left:10px;z-index:10}
+#ui{position:fixed;top:10px;left:10px;z-index:20}
 #joystick{
   position:fixed;left:20px;bottom:20px;
   width:120px;height:120px;
@@ -25,10 +25,13 @@ button{
   background:rgba(255,255,255,.85);
   border-radius:50%;
 }
-#aimBtn{
-  position:fixed;right:20px;bottom:30px;
-  font-size:22px;
+#aimBtn,#gunBtn{
+  position:fixed;right:20px;
+  font-size:20px;
+  z-index:20;
 }
+#aimBtn{bottom:30px}
+#gunBtn{bottom:90px}
 #crosshair{
   position:fixed;left:50%;top:50%;
   transform:translate(-50%,-50%);
@@ -36,6 +39,15 @@ button{
   border:2px solid #fff;
   border-radius:50%;
   display:none;
+}
+#ammoUI{
+  position:fixed;right:20px;top:20px;
+  font-size:18px;
+  color:white;
+  background:rgba(0,0,0,.4);
+  padding:6px 10px;
+  border-radius:6px;
+  z-index:20;
 }
 </style>
 </head>
@@ -45,182 +57,192 @@ button{
   <button id="viewBtn">👁️ 3인칭</button>
 </div>
 <div id="joystick"><div id="stick"></div></div>
+<button id="gunBtn">🔄</button>
 <button id="aimBtn">🔫</button>
 <div id="crosshair"></div>
+<div id="ammoUI"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
 <script>
 /* ===== Scene ===== */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xcfa46a);
-scene.fog = new THREE.Fog(0xcfa46a, 25, 150);
+scene.fog = new THREE.Fog(0xcfa46a,25,150);
 
-const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 300);
-
+const camera = new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,300);
 const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 /* ===== Light ===== */
-scene.add(new THREE.AmbientLight(0xffe6c1, 0.4));
-
-const sun = new THREE.DirectionalLight(0xffc27d, 1.3);
-sun.position.set(30, 50, 20);
-sun.castShadow = true;
+scene.add(new THREE.AmbientLight(0xffe6c1,.4));
+const sun=new THREE.DirectionalLight(0xffc27d,1.3);
+sun.position.set(30,50,20);
+sun.castShadow=true;
 sun.shadow.mapSize.set(2048,2048);
 scene.add(sun);
 
 /* ===== Ground ===== */
-const ground = new THREE.Mesh(
+const ground=new THREE.Mesh(
   new THREE.PlaneGeometry(300,300),
-  new THREE.MeshStandardMaterial({
-    color:0xc2a46d,
-    roughness:1,
-    metalness:0
-  })
+  new THREE.MeshStandardMaterial({color:0xc2a46d,roughness:1})
 );
-ground.rotation.x = -Math.PI/2;
-ground.receiveShadow = true;
+ground.rotation.x=-Math.PI/2;
+ground.receiveShadow=true;
 scene.add(ground);
 
 /* ===== Player ===== */
-const player = new THREE.Group();
-
-const body = new THREE.Mesh(
-  new THREE.BoxGeometry(1,1.7,0.6),
-  new THREE.MeshStandardMaterial({color:0x4a3628, roughness:1})
+const player=new THREE.Group();
+const body=new THREE.Mesh(
+  new THREE.BoxGeometry(1,1.7,.6),
+  new THREE.MeshStandardMaterial({color:0x4a3628})
 );
-body.position.y = 1;
-body.castShadow = true;
+body.position.y=1; body.castShadow=true;
 player.add(body);
-
-const head = new THREE.Mesh(
-  new THREE.BoxGeometry(0.9,0.9,0.9),
-  new THREE.MeshStandardMaterial({color:0xe0c19b, roughness:0.9})
+const head=new THREE.Mesh(
+  new THREE.BoxGeometry(.9,.9,.9),
+  new THREE.MeshStandardMaterial({color:0xe0c19b})
 );
-head.position.y = 2.2;
-head.castShadow = true;
+head.position.y=2.2; head.castShadow=true;
 player.add(head);
-
-const hat = new THREE.Mesh(
-  new THREE.BoxGeometry(1.3,0.3,1.3),
-  new THREE.MeshStandardMaterial({color:0x2b1b12, roughness:1})
-);
-hat.position.y = 2.8;
-hat.castShadow = true;
-player.add(hat);
-
 scene.add(player);
 
-/* ===== Controls ===== */
-let view = "third";
-let aiming = false;
-const bullets = [];
-
-const viewBtn = document.getElementById("viewBtn");
-const aimBtn = document.getElementById("aimBtn");
-const cross = document.getElementById("crosshair");
-
-viewBtn.onclick = ()=>{
-  view = view==="third" ? "first" : "third";
-  viewBtn.textContent = view==="third" ? "👁️ 3인칭" : "👀 1인칭";
-};
-aimBtn.onclick = ()=> aiming = !aiming;
+/* ===== Camera Drag ===== */
+let yaw=0,pitch=0,drag=false,lx=0,ly=0;
+function start(x,y){drag=true;lx=x;ly=y;}
+function move(x,y){
+  if(!drag)return;
+  yaw-=(x-lx)*0.005;
+  pitch-=(y-ly)*0.005;
+  pitch=Math.max(-1.2,Math.min(1.2,pitch));
+  lx=x;ly=y;
+}
+addEventListener("touchstart",e=>start(e.touches[0].clientX,e.touches[0].clientY));
+addEventListener("touchmove",e=>move(e.touches[0].clientX,e.touches[0].clientY));
+addEventListener("touchend",()=>drag=false);
+addEventListener("mousedown",e=>start(e.clientX,e.clientY));
+addEventListener("mousemove",e=>move(e.clientX,e.clientY));
+addEventListener("mouseup",()=>drag=false);
 
 /* ===== Joystick ===== */
-let dx=0, dz=0, active=false;
+let dx=0,dz=0;
 const joy=document.getElementById("joystick");
 const stick=document.getElementById("stick");
-
-joy.addEventListener("touchstart",()=>active=true);
 joy.addEventListener("touchmove",e=>{
-  if(!active) return;
-  const r=40, rect=joy.getBoundingClientRect();
+  const r=40,rect=joy.getBoundingClientRect();
   let x=e.touches[0].clientX-(rect.left+60);
   let y=e.touches[0].clientY-(rect.top+60);
-  const d=Math.hypot(x,y);
-  if(d>r){x*=r/d;y*=r/d;}
-  stick.style.left=35+x+"px";
-  stick.style.top=35+y+"px";
+  const d=Math.hypot(x,y); if(d>r){x*=r/d;y*=r/d;}
+  stick.style.left=35+x+"px"; stick.style.top=35+y+"px";
   dx=x*0.04; dz=y*0.04;
 });
 joy.addEventListener("touchend",()=>{
-  active=false; dx=dz=0;
-  stick.style.left="35px"; stick.style.top="35px";
+  dx=dz=0; stick.style.left="35px"; stick.style.top="35px";
 });
 
-/* ===== Shooting ===== */
-function shoot(){
-  const b = new THREE.Mesh(
-    new THREE.SphereGeometry(0.12,8,8),
-    new THREE.MeshStandardMaterial({color:0x222})
-  );
-  b.position.copy(camera.position);
-  const dir = new THREE.Vector3();
-  camera.getWorldDirection(dir);
-  b.userData.v = dir.multiplyScalar(0.9);
-  bullets.push(b);
-  scene.add(b);
+/* ===== Weapons ===== */
+let ammo=6,maxAmmo=6,reloading=false;
+let currentGun="revolver";
+const ammoUI=document.getElementById("ammoUI");
+function updateAmmo(){ammoUI.innerText=`🔫 ${ammo} / ${maxAmmo}`;}
+updateAmmo();
+
+/* Revolver */
+const gun=new THREE.Group();
+const grip=new THREE.Mesh(new THREE.BoxGeometry(.15,.35,.1),new THREE.MeshStandardMaterial({color:0x4a3628}));
+grip.position.set(.15,-.15,-.3); gun.add(grip);
+const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.6,8),new THREE.MeshStandardMaterial({color:0x222}));
+barrel.rotation.x=Math.PI/2; barrel.position.set(.15,0,-.6); gun.add(barrel);
+const cylinder=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.18,8),new THREE.MeshStandardMaterial({color:0x333}));
+cylinder.rotation.z=Math.PI/2; cylinder.position.set(.15,0,-.35); gun.add(cylinder);
+
+/* Rifle */
+const rifle=new THREE.Group();
+const rb=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,1.2,8),new THREE.MeshStandardMaterial({color:0x222}));
+rb.rotation.x=Math.PI/2; rb.position.set(.2,0,-.9); rifle.add(rb);
+const rs=new THREE.Mesh(new THREE.BoxGeometry(.15,.4,.1),new THREE.MeshStandardMaterial({color:0x4a3628}));
+rs.position.set(.15,-.2,-.3); rifle.add(rs);
+rifle.visible=false;
+
+camera.add(gun); camera.add(rifle); scene.add(camera);
+
+/* ===== Shoot ===== */
+const bullets=[];
+function reload(){
+  if(reloading)return;
+  reloading=true;
+  gun.position.y-=.2;
+  setTimeout(()=>{
+    ammo=maxAmmo; updateAmmo();
+    gun.position.y=0; reloading=false;
+  },1800);
 }
-addEventListener("click", shoot);
-aimBtn.addEventListener("dblclick", shoot);
+function shoot(){
+  if(reloading||ammo<=0)return;
+  ammo--; updateAmmo();
+  cylinder.rotation.x+=Math.PI/3;
+  const b=new THREE.Mesh(new THREE.SphereGeometry(.12,8,8),new THREE.MeshStandardMaterial({color:0x222}));
+  b.position.copy(camera.position);
+  const dir=new THREE.Vector3(); camera.getWorldDirection(dir);
+  b.userData.v=dir.multiplyScalar(currentGun==="rifle"?1.5:.9);
+  bullets.push(b); scene.add(b);
+  gun.position.z+=.1; setTimeout(()=>gun.position.z-=.1,80);
+  if(ammo<=0)reload();
+}
+addEventListener("click",shoot);
+
+/* ===== UI ===== */
+let view="third",aim=false;
+document.getElementById("viewBtn").onclick=()=>{
+  view=view==="third"?"first":"third";
+};
+document.getElementById("aimBtn").onclick=()=>aim=!aim;
+document.getElementById("gunBtn").onclick=()=>{
+  currentGun=currentGun==="revolver"?"rifle":"revolver";
+  gun.visible=currentGun==="revolver";
+  rifle.visible=currentGun==="rifle";
+};
 
 /* ===== Loop ===== */
 function animate(){
   requestAnimationFrame(animate);
+  player.position.x+=dx; player.position.z+=dz;
 
-  player.position.x += dx;
-  player.position.z += dz;
+  const dxr=Math.sin(yaw)*Math.cos(pitch);
+  const dyr=Math.sin(pitch);
+  const dzr=Math.cos(yaw)*Math.cos(pitch);
 
   if(view==="third"){
-    camera.position.lerp(
-      new THREE.Vector3(
-        player.position.x,
-        player.position.y+2.5,
-        player.position.z+6
-      ),0.08
-    );
-    camera.lookAt(
-      player.position.x,
-      player.position.y+1.5,
-      player.position.z
-    );
-    player.visible = true;
-    cross.style.display = "none";
-  }else{
     camera.position.set(
-      player.position.x,
-      player.position.y+1.7,
-      player.position.z
+      player.position.x-dxr*6,
+      player.position.y+2.5+dyr*2,
+      player.position.z-dzr*6
     );
-    player.visible = false;
-    cross.style.display = aiming ? "block" : "none";
-    if(aiming){
-      camera.rotation.x += (Math.random()-0.5)*0.002;
-      camera.rotation.y += (Math.random()-0.5)*0.002;
-    }
+    camera.lookAt(player.position.x,player.position.y+1.5,player.position.z);
+    player.visible=true;
+    document.getElementById("crosshair").style.display="none";
+  }else{
+    camera.position.set(player.position.x,player.position.y+1.7,player.position.z);
+    camera.lookAt(
+      player.position.x+dxr,
+      player.position.y+1.7+dyr,
+      player.position.z+dzr
+    );
+    player.visible=false;
+    document.getElementById("crosshair").style.display=aim?"block":"none";
   }
 
   bullets.forEach((b,i)=>{
     b.position.add(b.userData.v);
-    if(b.position.length()>200){
-      scene.remove(b);
-      bullets.splice(i,1);
-    }
+    if(b.position.length()>200){scene.remove(b);bullets.splice(i,1);}
   });
 
   renderer.render(scene,camera);
 }
 animate();
-
-addEventListener("resize",()=>{
-  camera.aspect = innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);
-});
 </script>
 </body>
 </html>
