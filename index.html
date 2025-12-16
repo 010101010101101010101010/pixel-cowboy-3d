@@ -2,184 +2,54 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>Western PvP</title>
+<title>Roblox Western Revolver</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-
 <style>
-html,body{
-  margin:0;
-  padding:0;
-  overflow:hidden;
-  background:#000;
-  font-family:sans-serif;
-}
+html,body{margin:0;overflow:hidden;background:#000;font-family:sans-serif}
 
-/* ===== 스킨 선택 오버레이 ===== */
-#overlay{
-  position:fixed;
-  inset:0;
-  background:#2b1d0e;
-  color:white;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap:14px;
-  z-index:9999;
-}
+/* UI */
+#ui{position:fixed;top:10px;left:10px;z-index:10;color:white}
+#ui div{background:rgba(0,0,0,.5);padding:6px 10px;border-radius:6px;margin-bottom:6px}
+#reload{color:#ffd27d;font-weight:bold}
 
-#overlay h1{
-  margin-bottom:20px;
-}
-
-.skin{
-  display:block;
-  width:240px;
-  padding:16px 0;
-  border-radius:14px;
-  background:#3a2713;
-  border:2px solid #ffd27d;
-  font-size:20px;
-  color:white;
-  text-align:center;
-}
-
-/* ===== UI ===== */
-#ui{
-  position:fixed;
-  top:10px;
-  left:10px;
-  z-index:10;
-}
-#hp,#ammo{
-  background:rgba(0,0,0,.5);
-  color:white;
-  padding:6px 10px;
-  border-radius:6px;
-  margin-bottom:6px;
-}
-
-/* ===== 미니맵 ===== */
-#minimap{
-  position:fixed;
-  top:20px;
-  right:20px;
-  width:150px;
-  height:150px;
-  border-radius:50%;
-  background:rgba(0,0,0,.4);
-  z-index:10;
-}
-
-/* ===== 조이스틱 ===== */
-#joystick{
-  position:fixed;
-  left:20px;
-  bottom:20px;
-  width:120px;
-  height:120px;
-  background:rgba(255,255,255,.15);
-  border-radius:50%;
-  z-index:10;
-}
-#stick{
-  position:absolute;
-  left:35px;
-  top:35px;
-  width:50px;
-  height:50px;
-  background:white;
-  border-radius:50%;
-}
-
-/* ===== 버튼 ===== */
+/* 버튼 */
 button{
-  position:fixed;
-  right:20px;
-  padding:10px;
-  border:none;
-  border-radius:10px;
-  font-size:18px;
-  z-index:10;
+  position:fixed;right:20px;
+  padding:12px;border:none;
+  border-radius:12px;font-size:20px;
+  z-index:10
 }
 #shoot{bottom:20px}
-#view{bottom:80px}
-#jump{bottom:140px}
-#dash{bottom:200px}
+#reloadBtn{bottom:80px}
+#view{bottom:140px}
 </style>
 </head>
-
 <body>
-
-<!-- ===== 스킨 선택 ===== -->
-<div id="overlay">
-  <h1>🤠 카우보이 선택</h1>
-  <button class="skin" onclick="selectSkin(0)">브라운 카우보이</button>
-  <button class="skin" onclick="selectSkin(1)">블루 셰리프</button>
-  <button class="skin" onclick="selectSkin(2)">레드 아웃로</button>
-</div>
 
 <div id="ui">
   <div id="hp">❤️ 100</div>
   <div id="ammo">🔫 6 / 6</div>
+  <div id="reload"></div>
 </div>
 
-<canvas id="minimap" width="150" height="150"></canvas>
-
-<div id="joystick"><div id="stick"></div></div>
-
 <button id="shoot">🔫</button>
+<button id="reloadBtn">🔄</button>
 <button id="view">👁️</button>
-<button id="jump">⬆️</button>
-<button id="dash">💨</button>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-/* ===== Firebase (교체 필수) ===== */
-const firebaseConfig={
-  apiKey:"YOUR_KEY",
-  authDomain:"YOUR_DOMAIN",
-  databaseURL:"YOUR_DB_URL",
-  projectId:"YOUR_ID"
-};
-firebase.initializeApp(firebaseConfig);
-const db=firebase.database();
-
-/* ===== 스킨 데이터 ===== */
-const skins=[
-  {body:0x8b5a2b,hat:0x3b2a1a},
-  {body:0x2d6cdf,hat:0x1e3a5f},
-  {body:0xb02a2a,hat:0x4a0f0f}
-];
-let skinId=0;
-
-function selectSkin(id){
-  skinId=id;
-  document.getElementById("overlay").style.display="none";
-  startGame();
-}
-
-/* ===== 게임 시작 ===== */
-function startGame(){
-const roomId=prompt("방 이름 입력");
-const myId="p"+Math.random().toString(36).substr(2,5);
-
-/* THREE */
+/* ===== THREE ===== */
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0xcfa46a);
-scene.fog=new THREE.Fog(0xcfa46a,20,120);
 
 const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,300);
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth,innerHeight);
-renderer.setPixelRatio(devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.AmbientLight(0xffe6c1,.4));
-const sun=new THREE.DirectionalLight(0xffc27d,1.2);
+scene.add(new THREE.AmbientLight(0xffffff,.7));
+const sun=new THREE.DirectionalLight(0xffffff,1);
 sun.position.set(30,50,20);
 scene.add(sun);
 
@@ -190,49 +60,156 @@ const ground=new THREE.Mesh(
 ground.rotation.x=-Math.PI/2;
 scene.add(ground);
 
-/* Player */
-function createPlayer(s){
-  const g=new THREE.Group();
-  const body=new THREE.Mesh(
-    new THREE.BoxGeometry(1.2,1.5,0.7),
-    new THREE.MeshStandardMaterial({color:s.body})
-  );
-  body.position.y=1.75; g.add(body);
-
-  const head=new THREE.Mesh(
-    new THREE.BoxGeometry(1,1,1),
-    new THREE.MeshStandardMaterial({color:0xffdbac})
-  );
-  head.position.y=2.9; g.add(head);
-
-  const hat=new THREE.Mesh(
-    new THREE.CylinderGeometry(0.7,0.7,0.3,8),
-    new THREE.MeshStandardMaterial({color:s.hat})
-  );
-  hat.position.y=3.4; g.add(hat);
-
-  return g;
-}
-
-const player=createPlayer(skins[skinId]);
+/* ===== Roblox 캐릭터 ===== */
+const player=new THREE.Group();
 scene.add(player);
-const enemies={};
 
-/* UI */
-let hp=100,ammo=6;
-const hpUI=document.getElementById("hp");
+/* 머리 */
+const head=new THREE.Mesh(
+  new THREE.BoxGeometry(1.2,1.2,1.2),
+  new THREE.MeshStandardMaterial({color:0xffdbac})
+);
+head.position.y=3.6;
+player.add(head);
+
+/* 몸통 */
+const torso=new THREE.Mesh(
+  new THREE.BoxGeometry(1.8,2.2,1),
+  new THREE.MeshStandardMaterial({color:0x8b5a2b})
+);
+torso.position.y=2.2;
+player.add(torso);
+
+/* 왼팔 */
+const leftArm=new THREE.Mesh(
+  new THREE.BoxGeometry(0.5,2,0.5),
+  new THREE.MeshStandardMaterial({color:0xffdbac})
+);
+leftArm.position.set(-1.15,2.2,0);
+player.add(leftArm);
+
+/* 오른팔 (총 드는 팔) */
+const rightArm=new THREE.Mesh(
+  new THREE.BoxGeometry(0.5,2,0.5),
+  new THREE.MeshStandardMaterial({color:0xffdbac})
+);
+rightArm.position.set(1.15,2.2,0);
+player.add(rightArm);
+
+/* 다리 */
+function leg(x){
+  const l=new THREE.Mesh(
+    new THREE.BoxGeometry(0.6,2,0.6),
+    new THREE.MeshStandardMaterial({color:0x444444})
+  );
+  l.position.set(x,1,0);
+  player.add(l);
+}
+leg(-0.45); leg(0.45);
+
+/* ===== 리볼버 ===== */
+const gun=new THREE.Group();
+gun.position.set(0.4,-0.8,0.4);
+rightArm.add(gun);
+
+/* 프레임 */
+const frame=new THREE.Mesh(
+  new THREE.BoxGeometry(1,0.3,0.3),
+  new THREE.MeshStandardMaterial({color:0x222222})
+);
+gun.add(frame);
+
+/* 실린더 */
+const cylinder=new THREE.Mesh(
+  new THREE.CylinderGeometry(0.22,0.22,0.3,6),
+  new THREE.MeshStandardMaterial({color:0x555555})
+);
+cylinder.rotation.z=Math.PI/2;
+cylinder.position.x=-0.35;
+gun.add(cylinder);
+
+/* ===== 상태 ===== */
+let third=true;
+let maxAmmo=6;
+let ammo=6;
+let reloading=false;
+
 const ammoUI=document.getElementById("ammo");
-function updateUI(){
-  hpUI.innerText=`❤️ ${hp}`;
-  ammoUI.innerText=`🔫 ${ammo} / 6`;
-}
-updateUI();
+const reloadUI=document.getElementById("reload");
 
-/* 이동, PvP, 카메라, 미니맵 루프는
-   👉 이전과 동일 (정상 작동) */
+/* ===== 사운드 ===== */
+const shootSound=new Audio("https://cdn.pixabay.com/audio/2022/03/15/audio_92c6b43f8f.mp3");
+const reloadSound=new Audio("https://cdn.pixabay.com/audio/2022/03/15/audio_5a4bba1f45.mp3");
 
-alert("✅ 스킨 선택 정상 작동!\n이제 게임 시작됨");
+/* ===== 애니메이션 값 ===== */
+let armKick=0;
+let gunKick=0;
+
+/* ===== 발사 ===== */
+function shoot(){
+  if(ammo<=0 || reloading) return;
+
+  ammo--;
+  ammoUI.innerText=`🔫 ${ammo} / ${maxAmmo}`;
+  shootSound.currentTime=0; shootSound.play();
+
+  /* 반동 트리거 */
+  armKick=0.4;
+  gunKick=0.25;
+
+  /* 실린더 회전 */
+  cylinder.rotation.x -= Math.PI/3;
 }
+
+/* ===== 한 발 장전 ===== */
+function reloadOne(){
+  if(reloading || ammo>=maxAmmo) return;
+  reloading=true;
+  reloadUI.innerText="장전 중…";
+  reloadSound.currentTime=0;
+  reloadSound.play();
+
+  /* 장전 모션 */
+  armKick=-0.3;
+
+  setTimeout(()=>{
+    ammo++;
+    ammoUI.innerText=`🔫 ${ammo} / ${maxAmmo}`;
+    reloadUI.innerText="";
+    reloading=false;
+  },600);
+}
+
+/* ===== 루프 ===== */
+function animate(){
+  requestAnimationFrame(animate);
+
+  /* 팔 애니메이션 */
+  rightArm.rotation.x += armKick;
+  armKick *= 0.6;
+
+  /* 총 애니메이션 */
+  gun.position.z -= gunKick;
+  gunKick *= 0.6;
+  gun.position.z += gunKick;
+
+  /* 카메라 */
+  camera.position.lerp(
+    third
+      ? new THREE.Vector3(player.position.x,6,player.position.z+8)
+      : new THREE.Vector3(player.position.x,4.2,player.position.z+0.2),
+    0.12
+  );
+  camera.lookAt(player.position.x,3,player.position.z);
+
+  renderer.render(scene,camera);
+}
+animate();
+
+/* ===== 버튼 ===== */
+document.getElementById("shoot").onclick=shoot;
+document.getElementById("reloadBtn").onclick=reloadOne;
+document.getElementById("view").onclick=()=>third=!third;
 </script>
 </body>
 </html>
