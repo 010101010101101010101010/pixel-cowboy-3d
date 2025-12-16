@@ -2,17 +2,40 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>Western Cowboy</title>
+<title>Western PvP</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <style>
-html,body{margin:0;padding:0;overflow:hidden;background:#000}
-button{
-  padding:10px;
-  border:none;
-  border-radius:8px;
-  font-size:14px;
+html,body{margin:0;overflow:hidden;background:#000;font-family:sans-serif}
+#overlay{
+  position:fixed;inset:0;
+  background:#2b1d0e;
+  color:white;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  z-index:999;
 }
-#ui{position:fixed;top:10px;left:10px;z-index:20}
+.skin{
+  margin:10px;
+  padding:12px 20px;
+  border-radius:8px;
+  background:#0008;
+  border:2px solid #fff3;
+  font-size:18px;
+}
+#ui{position:fixed;z-index:10}
+#hp,#ammo{
+  background:rgba(0,0,0,.5);
+  color:white;padding:6px 10px;
+  border-radius:6px;margin:5px;
+}
+#minimap{
+  position:fixed;top:20px;right:20px;
+  width:150px;height:150px;
+  border-radius:50%;
+  background:rgba(0,0,0,.4);
+}
 #joystick{
   position:fixed;left:20px;bottom:20px;
   width:120px;height:120px;
@@ -22,113 +45,143 @@ button{
 #stick{
   position:absolute;left:35px;top:35px;
   width:50px;height:50px;
-  background:rgba(255,255,255,.85);
-  border-radius:50%;
+  background:white;border-radius:50%;
 }
-#aimBtn,#gunBtn{
+button{
   position:fixed;right:20px;
-  font-size:20px;
-  z-index:20;
+  padding:10px;border:none;
+  border-radius:8px;font-size:18px;
 }
-#aimBtn{bottom:30px}
-#gunBtn{bottom:90px}
-#crosshair{
-  position:fixed;left:50%;top:50%;
-  transform:translate(-50%,-50%);
-  width:28px;height:28px;
-  border:2px solid #fff;
-  border-radius:50%;
-  display:none;
-}
-#ammoUI{
-  position:fixed;right:20px;top:20px;
-  font-size:18px;
-  color:white;
-  background:rgba(0,0,0,.4);
-  padding:6px 10px;
-  border-radius:6px;
-  z-index:20;
-}
+#shoot{bottom:20px}
+#view{bottom:80px}
+#jump{bottom:140px}
+#dash{bottom:200px}
 </style>
 </head>
 <body>
 
-<div id="ui">
-  <button id="viewBtn">👁️ 3인칭</button>
+<!-- ===== 스킨 선택 ===== -->
+<div id="overlay">
+  <h1>🤠 카우보이 선택</h1>
+  <button class="skin" onclick="selectSkin(0)">브라운 카우보이</button>
+  <button class="skin" onclick="selectSkin(1)">블루 셰리프</button>
+  <button class="skin" onclick="selectSkin(2)">레드 아웃로</button>
 </div>
+
+<div id="ui">
+  <div id="hp">❤️ 100</div>
+  <div id="ammo">🔫 6 / 6</div>
+</div>
+
+<canvas id="minimap" width="150" height="150"></canvas>
 <div id="joystick"><div id="stick"></div></div>
-<button id="gunBtn">🔄</button>
-<button id="aimBtn">🔫</button>
-<div id="crosshair"></div>
-<div id="ammoUI"></div>
+
+<button id="shoot">🔫</button>
+<button id="view">👁️</button>
+<button id="jump">⬆️</button>
+<button id="dash">💨</button>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
-<script>
-/* ===== Scene ===== */
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xcfa46a);
-scene.fog = new THREE.Fog(0xcfa46a,25,150);
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-const camera = new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,300);
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setPixelRatio(devicePixelRatio);
+<script>
+/* ===== Firebase ===== */
+const firebaseConfig={
+  apiKey:"YOUR_KEY",
+  authDomain:"YOUR_DOMAIN",
+  databaseURL:"YOUR_DB_URL",
+  projectId:"YOUR_ID"
+};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.database();
+
+/* ===== Skin ===== */
+const skins=[
+  {body:0x8b5a2b,hat:0x3b2a1a},
+  {body:0x2d6cdf,hat:0x1e3a5f},
+  {body:0xb02a2a,hat:0x4a0f0f}
+];
+let skinId=0;
+
+function selectSkin(id){
+  skinId=id;
+  document.getElementById("overlay").style.display="none";
+  startGame();
+}
+
+/* ===== Game ===== */
+function startGame(){
+const roomId=prompt("방 이름 입력");
+const myId="p"+Math.random().toString(36).substr(2,5);
+
+/* THREE */
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0xcfa46a);
+scene.fog=new THREE.Fog(0xcfa46a,20,120);
+
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,300);
+const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth,innerHeight);
-renderer.shadowMap.enabled=true;
-renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.setPixelRatio(devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-/* ===== Light ===== */
 scene.add(new THREE.AmbientLight(0xffe6c1,.4));
-const sun=new THREE.DirectionalLight(0xffc27d,1.3);
+const sun=new THREE.DirectionalLight(0xffc27d,1.2);
 sun.position.set(30,50,20);
-sun.castShadow=true;
-sun.shadow.mapSize.set(2048,2048);
 scene.add(sun);
 
-/* ===== Ground ===== */
 const ground=new THREE.Mesh(
   new THREE.PlaneGeometry(300,300),
-  new THREE.MeshStandardMaterial({color:0xc2a46d,roughness:1})
+  new THREE.MeshStandardMaterial({color:0xc2a46d})
 );
 ground.rotation.x=-Math.PI/2;
-ground.receiveShadow=true;
 scene.add(ground);
 
-/* ===== Player ===== */
-const player=new THREE.Group();
-const body=new THREE.Mesh(
-  new THREE.BoxGeometry(1,1.7,.6),
-  new THREE.MeshStandardMaterial({color:0x4a3628})
-);
-body.position.y=1; body.castShadow=true;
-player.add(body);
-const head=new THREE.Mesh(
-  new THREE.BoxGeometry(.9,.9,.9),
-  new THREE.MeshStandardMaterial({color:0xe0c19b})
-);
-head.position.y=2.2; head.castShadow=true;
-player.add(head);
+/* Player */
+function createPlayer(s){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(
+    new THREE.BoxGeometry(1.2,1.5,0.7),
+    new THREE.MeshStandardMaterial({color:s.body})
+  );
+  body.position.y=1.75; g.add(body);
+
+  const head=new THREE.Mesh(
+    new THREE.BoxGeometry(1,1,1),
+    new THREE.MeshStandardMaterial({color:0xffdbac})
+  );
+  head.position.y=2.9; g.add(head);
+
+  const hat=new THREE.Mesh(
+    new THREE.CylinderGeometry(0.7,0.7,0.3,8),
+    new THREE.MeshStandardMaterial({color:s.hat})
+  );
+  hat.position.y=3.4; g.add(hat);
+
+  return g;
+}
+
+const player=createPlayer(skins[skinId]);
 scene.add(player);
 
-/* ===== Camera Drag ===== */
-let yaw=0,pitch=0,drag=false,lx=0,ly=0;
-function start(x,y){drag=true;lx=x;ly=y;}
-function move(x,y){
-  if(!drag)return;
-  yaw-=(x-lx)*0.005;
-  pitch-=(y-ly)*0.005;
-  pitch=Math.max(-1.2,Math.min(1.2,pitch));
-  lx=x;ly=y;
-}
-addEventListener("touchstart",e=>start(e.touches[0].clientX,e.touches[0].clientY));
-addEventListener("touchmove",e=>move(e.touches[0].clientX,e.touches[0].clientY));
-addEventListener("touchend",()=>drag=false);
-addEventListener("mousedown",e=>start(e.clientX,e.clientY));
-addEventListener("mousemove",e=>move(e.clientX,e.clientY));
-addEventListener("mouseup",()=>drag=false);
+const enemies={};
 
-/* ===== Joystick ===== */
-let dx=0,dz=0;
+/* UI */
+let hp=100,ammo=6;
+const hpUI=document.getElementById("hp");
+const ammoUI=document.getElementById("ammo");
+function updateUI(){
+  hpUI.innerText=`❤️ ${hp}`;
+  ammoUI.innerText=`🔫 ${ammo} / 6`;
+}
+
+/* Movement */
+let dx=0,dz=0,vy=0,grounded=true;
+let yaw=0,pitch=0,drag=false,lx=0,ly=0;
+let view="third";
+
+/* Joystick */
 const joy=document.getElementById("joystick");
 const stick=document.getElementById("stick");
 joy.addEventListener("touchmove",e=>{
@@ -139,110 +192,107 @@ joy.addEventListener("touchmove",e=>{
   stick.style.left=35+x+"px"; stick.style.top=35+y+"px";
   dx=x*0.04; dz=y*0.04;
 });
-joy.addEventListener("touchend",()=>{
-  dx=dz=0; stick.style.left="35px"; stick.style.top="35px";
+joy.addEventListener("touchend",()=>{dx=dz=0;stick.style.left="35px";stick.style.top="35px";});
+
+/* Camera drag (right side only) */
+addEventListener("touchstart",e=>{
+  const x=e.touches[0].clientX;
+  if(x<innerWidth/2)return;
+  drag=true; lx=x; ly=e.touches[0].clientY;
+});
+addEventListener("touchmove",e=>{
+  if(!drag)return;
+  yaw-=(e.touches[0].clientX-lx)*0.005;
+  pitch-=(e.touches[0].clientY-ly)*0.005;
+  pitch=Math.max(-1.2,Math.min(1.2,pitch));
+  lx=e.touches[0].clientX;
+  ly=e.touches[0].clientY;
+});
+addEventListener("touchend",()=>drag=false);
+
+/* Buttons */
+shoot.onclick=()=>{
+  if(ammo<=0)return;
+  ammo--;updateUI();
+  db.ref(`rooms/${roomId}/shots`).push({
+    x:player.position.x,
+    z:player.position.z,
+    id:myId
+  });
+};
+view.onclick=()=>view=view==="first"?"third":"first";
+jump.onclick=()=>{if(grounded){vy=0.35;grounded=false;}};
+dash.onclick=()=>{
+  player.position.x+=Math.sin(yaw)*3;
+  player.position.z+=Math.cos(yaw)*3;
+};
+
+/* PvP */
+db.ref(`rooms/${roomId}/players`).on("value",snap=>{
+  const d=snap.val()||{};
+  for(const id in d){
+    if(id===myId)continue;
+    if(!enemies[id]){
+      enemies[id]=createPlayer(skins[d[id].skin]);
+      scene.add(enemies[id]);
+    }
+    enemies[id].position.set(d[id].x,0,d[id].z);
+  }
 });
 
-/* ===== Weapons ===== */
-let ammo=6,maxAmmo=6,reloading=false;
-let currentGun="revolver";
-const ammoUI=document.getElementById("ammoUI");
-function updateAmmo(){ammoUI.innerText=`🔫 ${ammo} / ${maxAmmo}`;}
-updateAmmo();
+/* Minimap */
+const mini=document.getElementById("minimap");
+const mctx=mini.getContext("2d");
 
-/* Revolver */
-const gun=new THREE.Group();
-const grip=new THREE.Mesh(new THREE.BoxGeometry(.15,.35,.1),new THREE.MeshStandardMaterial({color:0x4a3628}));
-grip.position.set(.15,-.15,-.3); gun.add(grip);
-const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,.6,8),new THREE.MeshStandardMaterial({color:0x222}));
-barrel.rotation.x=Math.PI/2; barrel.position.set(.15,0,-.6); gun.add(barrel);
-const cylinder=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.18,8),new THREE.MeshStandardMaterial({color:0x333}));
-cylinder.rotation.z=Math.PI/2; cylinder.position.set(.15,0,-.35); gun.add(cylinder);
-
-/* Rifle */
-const rifle=new THREE.Group();
-const rb=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,1.2,8),new THREE.MeshStandardMaterial({color:0x222}));
-rb.rotation.x=Math.PI/2; rb.position.set(.2,0,-.9); rifle.add(rb);
-const rs=new THREE.Mesh(new THREE.BoxGeometry(.15,.4,.1),new THREE.MeshStandardMaterial({color:0x4a3628}));
-rs.position.set(.15,-.2,-.3); rifle.add(rs);
-rifle.visible=false;
-
-camera.add(gun); camera.add(rifle); scene.add(camera);
-
-/* ===== Shoot ===== */
-const bullets=[];
-function reload(){
-  if(reloading)return;
-  reloading=true;
-  gun.position.y-=.2;
-  setTimeout(()=>{
-    ammo=maxAmmo; updateAmmo();
-    gun.position.y=0; reloading=false;
-  },1800);
-}
-function shoot(){
-  if(reloading||ammo<=0)return;
-  ammo--; updateAmmo();
-  cylinder.rotation.x+=Math.PI/3;
-  const b=new THREE.Mesh(new THREE.SphereGeometry(.12,8,8),new THREE.MeshStandardMaterial({color:0x222}));
-  b.position.copy(camera.position);
-  const dir=new THREE.Vector3(); camera.getWorldDirection(dir);
-  b.userData.v=dir.multiplyScalar(currentGun==="rifle"?1.5:.9);
-  bullets.push(b); scene.add(b);
-  gun.position.z+=.1; setTimeout(()=>gun.position.z-=.1,80);
-  if(ammo<=0)reload();
-}
-addEventListener("click",shoot);
-
-/* ===== UI ===== */
-let view="third",aim=false;
-document.getElementById("viewBtn").onclick=()=>{
-  view=view==="third"?"first":"third";
-};
-document.getElementById("aimBtn").onclick=()=>aim=!aim;
-document.getElementById("gunBtn").onclick=()=>{
-  currentGun=currentGun==="revolver"?"rifle":"revolver";
-  gun.visible=currentGun==="revolver";
-  rifle.visible=currentGun==="rifle";
-};
-
-/* ===== Loop ===== */
+/* Loop */
 function animate(){
   requestAnimationFrame(animate);
-  player.position.x+=dx; player.position.z+=dz;
 
-  const dxr=Math.sin(yaw)*Math.cos(pitch);
-  const dyr=Math.sin(pitch);
-  const dzr=Math.cos(yaw)*Math.cos(pitch);
+  player.position.x+=dx;
+  player.position.z+=dz;
 
-  if(view==="third"){
-    camera.position.set(
-      player.position.x-dxr*6,
-      player.position.y+2.5+dyr*2,
-      player.position.z-dzr*6
-    );
-    camera.lookAt(player.position.x,player.position.y+1.5,player.position.z);
-    player.visible=true;
-    document.getElementById("crosshair").style.display="none";
-  }else{
-    camera.position.set(player.position.x,player.position.y+1.7,player.position.z);
-    camera.lookAt(
-      player.position.x+dxr,
-      player.position.y+1.7+dyr,
-      player.position.z+dzr
-    );
-    player.visible=false;
-    document.getElementById("crosshair").style.display=aim?"block":"none";
+  vy-=0.02;
+  player.position.y+=vy;
+  if(player.position.y<=0){
+    player.position.y=0;vy=0;grounded=true;
   }
 
-  bullets.forEach((b,i)=>{
-    b.position.add(b.userData.v);
-    if(b.position.length()>200){scene.remove(b);bullets.splice(i,1);}
+  if(view==="first"){
+    camera.position.set(player.position.x,player.position.y+2.6,player.position.z);
+  }else{
+    camera.position.set(
+      player.position.x+Math.sin(yaw)*6,
+      player.position.y+4,
+      player.position.z+Math.cos(yaw)*6
+    );
+  }
+  camera.lookAt(player.position.x,player.position.y+2,player.position.z);
+
+  db.ref(`rooms/${roomId}/players/${myId}`).set({
+    x:player.position.x,
+    z:player.position.z,
+    skin:skinId
   });
+
+  mctx.clearRect(0,0,150,150);
+  mctx.fillStyle="cyan";
+  mctx.beginPath();mctx.arc(75,75,5,0,Math.PI*2);mctx.fill();
+  mctx.fillStyle="red";
+  for(const id in enemies){
+    const e=enemies[id];
+    mctx.beginPath();
+    mctx.arc(
+      75+(e.position.x-player.position.x)*3,
+      75+(e.position.z-player.position.z)*3,
+      4,0,Math.PI*2
+    );
+    mctx.fill();
+  }
 
   renderer.render(scene,camera);
 }
 animate();
+}
 </script>
 </body>
 </html>
