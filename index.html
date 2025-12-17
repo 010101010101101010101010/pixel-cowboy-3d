@@ -2,10 +2,11 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>Roblox R6 Shooter MP</title>
+<title>Roblox R6 Shooter Mobile</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <style>
-html,body{margin:0;overflow:hidden;background:#000;font-family:sans-serif}
+html,body{margin:0;overflow:hidden;background:#000;font-family:sans-serif;width:100vw;height:100vh;}
+canvas{display:block;width:100%;height:100%;}
 
 /* UI 버튼 */
 #ui button{position:fixed;right:20px;padding:12px 16px;font-size:16px;border:none;border-radius:12px;background:#fff;z-index:10}
@@ -58,21 +59,8 @@ html,body{margin:0;overflow:hidden;background:#000;font-family:sans-serif}
 
 <!-- THREE.js -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-// ===== Firebase =====
-const firebaseConfig = {
-  apiKey: "YOUR_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT.firebaseio.com",
-  projectId: "YOUR_PROJECT"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-
 // ===== 저장 =====
 let skin = localStorage.getItem("skin") || "brown";
 let money = Number(localStorage.getItem("money")) || 0;
@@ -82,7 +70,7 @@ let ownedWeapons = JSON.parse(localStorage.getItem("weapons")) || ["revolver"];
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xcfa46a);
 const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 300);
-const renderer = new THREE.WebGLRenderer({antialias:true}); renderer.setSize(innerWidth, innerHeight); document.body.appendChild(renderer.domElement);
+const renderer = new THREE.WebGLRenderer({antialias:true}); renderer.setSize(innerWidth,innerHeight); document.body.appendChild(renderer.domElement);
 scene.add(new THREE.AmbientLight(0xffffff,.7));
 const sun=new THREE.DirectionalLight(0xffffff,1); sun.position.set(30,50,20);scene.add(sun);
 
@@ -92,7 +80,7 @@ ground.rotation.x=-Math.PI/2;scene.add(ground);
 
 // ===== 플레이어 R6 =====
 const player = new THREE.Group();scene.add(player);
-const skinColor=()=> skin==="black"?0x222222:0xffdbac;
+const skinColor=()=> skin==="black"?0x222222:(skin==="white"?0xffffff:0xffdbac);
 
 // 몸통
 const torso = new THREE.Mesh(new THREE.BoxGeometry(2,2.2,1), new THREE.MeshStandardMaterial({color:skinColor()}));
@@ -159,34 +147,73 @@ function showMoneyPopup(amount){const el=document.getElementById("moneyPopup");i
 function buyWeapon(type){const w=weapons[type];if(ownedWeapons.includes(type)){equipWeapon(type); closeShop(); return;}if(money<w.price){alert("돈 부족!"); return;} money-=w.price; localStorage.setItem("money",money); showMoneyPopup(-w.price); ownedWeapons.push(type); localStorage.setItem("weapons",JSON.stringify(ownedWeapons)); equipWeapon(type); closeShop(); updateHUD();}
 function openShop(){
   const shopEl=document.getElementById("shop"); shopEl.style.display="flex";
-  // BBgun 제거
   const oldBB = document.getElementById("bbgunItem"); if(oldBB) shopEl.removeChild(oldBB);
-  // 1/100 확률
   if(Math.random()<0.01){ const bb=document.createElement("div"); bb.id="bbgunItem"; bb.className="shopItem"; bb.innerText="🔫 BBgun – 100$ (풀오토)"; bb.onclick=()=>buyWeapon("bbgun"); shopEl.appendChild(bb);}
 }
 function closeShop(){document.getElementById("shop").style.display="none";}
 document.getElementById("shopBtn").onclick=openShop;
 
-// ===== 플레이어 이동 (조이스틱) =====
-let moveX=0, moveZ=0, moveTouch=null, joyCenter={x:0,y:0}, yaw=0;
-document.getElementById("joyBase").addEventListener("touchstart", e => {const t=e.touches[0]; moveTouch=t.identifier; joyCenter={x:t.clientX,y:t.clientY};});
-document.getElementById("joyBase").addEventListener("touchmove", e => {if(moveTouch===null) return; const t=Array.from(e.touches).find(t=>t.identifier===moveTouch); if(!t) return; const dx=t.clientX-joyCenter.x, dy=t.clientY-joyCenter.y, dist=Math.min(40,Math.hypot(dx,dy)), ang=Math.atan2(dy,dx); moveX=Math.cos(ang)*(dist/40)*0.15; moveZ=Math.sin(ang)*(dist/40)*0.15;});
-document.getElementById("joyBase").addEventListener("touchend", e => {for(const t of e.changedTouches){if(t.identifier===moveTouch){moveTouch=null; moveX=0; moveZ=0;}}});
+// ===== 플레이어 이동 & 카메라 드래그 =====
+let moveX=0, moveZ=0, moveTouch=null, joyCenter={x:0,y:0};
+let cameraYaw=0, cameraPitch=0, dragTouch=null, dragLast={x:0,y:0};
 
-// ===== 기본 버튼 =====
+document.getElementById("joyBase").addEventListener("touchstart", e=>{
+  for(const t of e.touches){
+    if(t.clientX < window.innerWidth/2){ moveTouch=t.identifier; joyCenter={x:t.clientX,y:t.clientY}; }
+    else{ dragTouch=t.identifier; dragLast={x:t.clientX,y:t.clientY}; }
+  }
+});
+document.getElementById("joyBase").addEventListener("touchmove", e=>{
+  for(const t of e.touches){
+    if(t.identifier===moveTouch){
+      const dx = t.clientX-joyCenter.x, dy = t.clientY-joyCenter.y;
+      const dist = Math.min(40, Math.hypot(dx,dy)), angle = Math.atan2(dy,dx);
+      moveX = Math.cos(angle)*(dist/40)*0.15;
+      moveZ = Math.sin(angle)*(dist/40)*0.15;
+    }
+    if(t.identifier===dragTouch){
+      const dx = t.clientX-dragLast.x, dy = t.clientY-dragLast.y;
+      cameraYaw -= dx*0.005; cameraPitch -= dy*0.005;
+      cameraPitch=Math.max(-Math.PI/2, Math.min(Math.PI/2, cameraPitch));
+      dragLast={x:t.clientX,y:t.clientY};
+    }
+  }
+});
+document.getElementById("joyBase").addEventListener("touchend", e=>{
+  for(const t of e.changedTouches){
+    if(t.identifier===moveTouch){ moveTouch=null; moveX=0; moveZ=0; }
+    if(t.identifier===dragTouch){ dragTouch=null; }
+  }
+});
+
+// 기본 버튼
 let thirdPerson=true, aiming=false, jumping=false, jumpVel=0;
 document.getElementById("view").onclick=()=>thirdPerson=!thirdPerson;
 document.getElementById("aim").onclick=()=>{aiming=!aiming; drawFace(aiming?"aim":"normal");};
 document.getElementById("jump").onclick=()=>{if(!jumping){jumping=true; jumpVel=0.35; rightArm.rotation.x=-0.5;}};
 
-// ===== 애니메이션 =====
+// 캐릭터 색상 선택 버튼
+function changeSkin(color){
+  skin=color;
+  torso.material.color.set(skin==="black"?0x222222:(skin==="white"?0xffffff:0xffdbac));
+  head.material.color.set(torso.material.color);
+  leftArm.material.color.set(torso.material.color);
+  rightArm.material.color.set(torso.material.color);
+  localStorage.setItem("skin",skin);
+}
+const colorBtns=document.createElement("div");
+colorBtns.style.position="fixed"; colorBtns.style.top="80px"; colorBtns.style.right="20px"; colorBtns.style.zIndex="10";
+["brown","black","white"].forEach(c=>{ const btn=document.createElement("button"); btn.innerText=c; btn.style.margin="4px"; btn.onclick=()=>changeSkin(c); colorBtns.appendChild(btn);});
+document.body.appendChild(colorBtns);
+
+// 애니메이션
 function animate(){requestAnimationFrame(animate);
-player.position.x+=moveX*Math.cos(yaw)-moveZ*Math.sin(yaw);
-player.position.z+=moveZ*Math.cos(yaw)+moveX*Math.sin(yaw);
-if(jumping){player.position.y+=jumpVel;jumpVel-=0.03;if(player.position.y<=0){player.position.y=0;jumping=false; rightArm.rotation.x=0;}}
-const dist=thirdPerson?(aiming?4:8):0.1;
-camera.position.set(player.position.x+Math.sin(yaw)*dist,3,player.position.z+Math.cos(yaw)*dist);
-camera.lookAt(player.position.x,2,player.position.z);
+player.position.x+=moveX*Math.cos(cameraYaw)-moveZ*Math.sin(cameraYaw);
+player.position.z+=moveZ*Math.cos(cameraYaw)+moveX*Math.sin(cameraYaw);
+const dist = thirdPerson?(aiming?4:8):0.1;
+camera.position.set(player.position.x+Math.sin(cameraYaw)*dist,3,player.position.z+Math.cos(cameraYaw)*dist);
+camera.rotation.x = cameraPitch;
+camera.rotation.y = cameraYaw;
 renderer.render(scene,camera);}
 animate();
 
