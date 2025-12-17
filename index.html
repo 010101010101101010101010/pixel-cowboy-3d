@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>Roblox R6 Shooter Mobile</title>
+<title>Roblox R6 Shooter Mobile - Detailed Guns</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <style>
 html,body{margin:0;overflow:hidden;background:#000;font-family:sans-serif;width:100vw;height:100vh;}
@@ -114,7 +114,7 @@ else if(type==="dead"){fctx.moveTo(44,88); fctx.lineTo(84,88);}
 else{fctx.arc(64,80,18,0,Math.PI);}
 fctx.stroke(); faceTex.needsUpdate = true;} drawFace();
 
-// ===== 무기 =====
+// ===== 무기 디테일 =====
 const weapons = {
   revolver:{name:"Revolver",damage:25,recoil:0.15,fireRate:500,sound:"revolver"},
   glock:{name:"Glock",damage:15,recoil:0.07,fireRate:120,sound:"glock",price:2000},
@@ -122,11 +122,46 @@ const weapons = {
 };
 let currentWeapon="revolver"; let gun;
 
-// 무기 생성
-function createRevolver(){const g=new THREE.Group(); const barrel=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.8,12),new THREE.MeshStandardMaterial({color:0x333333})); barrel.rotation.z=Math.PI/2; barrel.position.set(0,0,0.4); g.add(barrel); const cylinder=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.3,16),new THREE.MeshStandardMaterial({color:0x222222})); cylinder.rotation.z=Math.PI/2; cylinder.position.set(-0.1,0,0.05); g.add(cylinder); const grip=new THREE.Mesh(new THREE.BoxGeometry(0.15,0.3,0.3),new THREE.MeshStandardMaterial({color:0x552200})); grip.position.set(-0.3,-0.1,0); g.add(grip); g.position.set(0,-1,0.8); return g;}
-function createGlock(){const g=new THREE.Group();const body=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.25,0.3),new THREE.MeshStandardMaterial({color:0x111})); g.add(body); const grip=new THREE.Mesh(new THREE.BoxGeometry(0.25,0.5,0.25),new THREE.MeshStandardMaterial({color:0x111})); grip.position.set(-0.2,-0.4,0); g.add(grip); g.position.set(0,-1,0.8); return g;}
-function createBBgun(){const g=new THREE.Group(); const body=new THREE.Mesh(new THREE.BoxGeometry(1,0.2,0.2),new THREE.MeshStandardMaterial({color:0x888})); g.add(body); g.position.set(0,-1,0.8); return g;}
-function equipWeapon(type){if(gun) rightArm.remove(gun); if(type==="glock") gun=createGlock(); else if(type==="bbgun") gun=createBBgun(); else gun=createRevolver(); rightArm.add(gun); currentWeapon=type; updateHUD();}
+// 리볼버 디테일 모델
+function createRevolver(){
+  const g = new THREE.Group();
+  const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.4,16),
+    new THREE.MeshStandardMaterial({color:0x222222, metalness:0.7, roughness:0.3}));
+  cylinder.rotation.z = Math.PI/2; cylinder.position.set(-0.15,0,0); g.add(cylinder);
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.8,16),
+    new THREE.MeshStandardMaterial({color:0x333333, metalness:0.8, roughness:0.2}));
+  barrel.rotation.z = Math.PI/2; barrel.position.set(0,0,0.4); g.add(barrel);
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.15,0.35,0.3),
+    new THREE.MeshStandardMaterial({color:0x552200, metalness:0.1, roughness:0.8}));
+  grip.position.set(-0.3,-0.1,0); g.add(grip);
+  g.position.set(0,-1,0.8); return g;
+}
+
+// 글록 디테일 모델
+function createGlock(){
+  const g = new THREE.Group();
+  const slide = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.2,0.3),
+    new THREE.MeshStandardMaterial({color:0x111111, metalness:0.7, roughness:0.2})); g.add(slide);
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.5,0.25),
+    new THREE.MeshStandardMaterial({color:0x111111, metalness:0.2, roughness:0.8})); grip.position.set(-0.2,-0.25,0); g.add(grip);
+  const trigger = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.15,0.05),
+    new THREE.MeshStandardMaterial({color:0x444444, metalness:0.8, roughness:0.3})); trigger.position.set(-0.05,-0.05,0.15); g.add(trigger);
+  g.position.set(0,-1,0.8); return g;
+}
+
+// BBgun 디테일
+function createBBgun(){
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1,0.2,0.2),
+    new THREE.MeshStandardMaterial({color:0x888888, metalness:0.7, roughness:0.2})); g.add(body);
+  g.position.set(0,-1,0.8); return g;
+}
+
+// 장착
+function equipWeapon(type){if(gun) rightArm.remove(gun);
+  if(type==="glock") gun=createGlock();
+  else if(type==="bbgun") gun=createBBgun();
+  else gun=createRevolver(); rightArm.add(gun); currentWeapon=type; updateHUD();}
 
 // 사운드
 const sounds={revolver: document.getElementById("revolverSound"), glock: document.getElementById("glockSound")};
@@ -146,7 +181,7 @@ function openShop(){
 function closeShop(){document.getElementById("shop").style.display="none";}
 document.getElementById("shopBtn").onclick=openShop;
 
-// ===== 플레이어 이동 & 카메라 드래그 =====
+// ===== 조이스틱 & 드래그 =====
 let moveX=0, moveZ=0;
 let moveTouch=null, dragTouch=null;
 let joyCenter={x:0,y:0}, dragLast={x:0,y:0};
@@ -154,34 +189,26 @@ let cameraYaw=0, cameraPitch=0;
 
 document.addEventListener("touchstart", e=>{
   for(const t of e.touches){
-    if(t.clientX < window.innerWidth/2 && moveTouch===null){
-      moveTouch = t.identifier;
-      joyCenter = {x:t.clientX,y:t.clientY};
-    } else if(t.clientX >= window.innerWidth/2 && dragTouch===null){
-      dragTouch = t.identifier;
-      dragLast = {x:t.clientX,y:t.clientY};
-    }
+    if(t.clientX < window.innerWidth/2 && moveTouch===null){ moveTouch=t.identifier; joyCenter={x:t.clientX,y:t.clientY};}
+    else if(t.clientX >= window.innerWidth/2 && dragTouch===null){ dragTouch=t.identifier; dragLast={x:t.clientX,y:t.clientY};}
   }
 });
 
 document.addEventListener("touchmove", e=>{
   for(const t of e.touches){
     if(t.identifier===moveTouch){
-      const dx = t.clientX - joyCenter.x;
-      const dy = t.clientY - joyCenter.y;
-      const dist = Math.min(40, Math.hypot(dx,dy));
-      const angle = Math.atan2(dy,dx);
-      moveX = Math.cos(angle)*(dist/40)*0.15;
-      moveZ = Math.sin(angle)*(dist/40)*0.15;
+      const dx=t.clientX-joyCenter.x; const dy=t.clientY-joyCenter.y;
+      const dist=Math.min(40, Math.hypot(dx,dy));
+      const angle=Math.atan2(dy,dx);
+      moveX=Math.cos(angle)*(dist/40)*0.15;
+      moveZ=Math.sin(angle)*(dist/40)*0.15;
       document.getElementById("joyStick").style.transform=`translate(${dx}px, ${dy}px)`;
     }
     if(t.identifier===dragTouch){
-      const dx = t.clientX - dragLast.x;
-      const dy = t.clientY - dragLast.y;
-      cameraYaw -= dx*0.005;
-      cameraPitch -= dy*0.005;
-      cameraPitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, cameraPitch));
-      dragLast = {x:t.clientX, y:t.clientY};
+      const dx=t.clientX-dragLast.x; const dy=t.clientY-dragLast.y;
+      cameraYaw-=dx*0.005; cameraPitch-=dy*0.005;
+      cameraPitch=Math.max(-Math.PI/2, Math.min(Math.PI/2, cameraPitch));
+      dragLast={x:t.clientX,y:t.clientY};
     }
   }
 });
@@ -189,34 +216,26 @@ document.addEventListener("touchmove", e=>{
 document.addEventListener("touchend", e=>{
   for(const t of e.changedTouches){
     if(t.identifier===moveTouch){ moveTouch=null; moveX=0; moveZ=0; document.getElementById("joyStick").style.transform="translate(0px,0px)";}
-    if(t.identifier===dragTouch){ dragTouch=null; }
+    if(t.identifier===dragTouch){ dragTouch=null;}
   }
 });
 
-// 기본 버튼
+// 버튼
 let thirdPerson=true, aiming=false, jumping=false, jumpVel=0;
 document.getElementById("view").onclick=()=>thirdPerson=!thirdPerson;
 document.getElementById("aim").onclick=()=>{aiming=!aiming; drawFace(aiming?"aim":"normal");};
-document.getElementById("jump").onclick=()=>{if(!jumping){jumping=true; jumpVel=0.35; rightArm.rotation.x=-0.5;}};
+document.getElementById("jump").onclick=()=>{if(!jumping){jumping=true;jumpVel=0.35; rightArm.rotation.x=-0.5;}};
 
-// 캐릭터 색상 선택 버튼
-function changeSkin(color){
-  skin=color;
-  torso.material.color.set(skin==="black"?0x222222:(skin==="white"?0xffffff:0xffdbac));
-  head.material.color.set(torso.material.color);
-  leftArm.material.color.set(torso.material.color);
-  rightArm.material.color.set(torso.material.color);
-  localStorage.setItem("skin",skin);
-}
-const colorBtns=document.createElement("div");
-colorBtns.style.position="fixed"; colorBtns.style.top="80px"; colorBtns.style.right="20px"; colorBtns.style.zIndex="10";
-["brown","black","white"].forEach(c=>{ const btn=document.createElement("button"); btn.innerText=c; btn.style.margin="4px"; btn.onclick=()=>changeSkin(c); colorBtns.appendChild(btn);});
+// 캐릭터 색상 선택
+function changeSkin(color){ skin=color; torso.material.color.set(skin==="black"?0x222222:(skin==="white"?0xffffff:0xffdbac)); head.material.color.set(torso.material.color); leftArm.material.color.set(torso.material.color); rightArm.material.color.set(torso.material.color); localStorage.setItem("skin",skin);}
+const colorBtns=document.createElement("div"); colorBtns.style.position="fixed"; colorBtns.style.top="80px"; colorBtns.style.right="20px"; colorBtns.style.zIndex="10";
+["brown","black","white"].forEach(c=>{const btn=document.createElement("button"); btn.innerText=c; btn.style.margin="4px"; btn.onclick=()=>changeSkin(c); colorBtns.appendChild(btn);});
 document.body.appendChild(colorBtns);
 
-// 옷 선택 버튼
-const outfits = {cowboy:{color:0x8B4513}, sheriff:{color:0x222222}, ranger:{color:0x006400}};
+// 옷 선택
+const outfits={cowboy:{color:0x8B4513}, sheriff:{color:0x222222}, ranger:{color:0x006400}};
 function changeOutfit(name){ if(!outfits[name]) return; torso.material.color.set(outfits[name].color); leftArm.material.color.set(outfits[name].color); rightArm.material.color.set(outfits[name].color); localStorage.setItem("outfit",name);}
-const outfitBtns = document.createElement("div"); outfitBtns.style.position="fixed"; outfitBtns.style.top="150px"; outfitBtns.style.right="20px"; outfitBtns.style.zIndex="10";
+const outfitBtns=document.createElement("div"); outfitBtns.style.position="fixed"; outfitBtns.style.top="150px"; outfitBtns.style.right="20px"; outfitBtns.style.zIndex="10";
 for(const key in outfits){ const btn=document.createElement("button"); btn.innerText=key; btn.style.margin="4px"; btn.onclick=()=>changeOutfit(key); outfitBtns.appendChild(btn);}
 document.body.appendChild(outfitBtns);
 const savedOutfit = localStorage.getItem("outfit"); if(savedOutfit) changeOutfit(savedOutfit);
@@ -225,8 +244,8 @@ const savedOutfit = localStorage.getItem("outfit"); if(savedOutfit) changeOutfit
 function animate(){requestAnimationFrame(animate);
 player.position.x += moveX*Math.cos(cameraYaw)-moveZ*Math.sin(cameraYaw);
 player.position.z += moveZ*Math.cos(cameraYaw)+moveX*Math.sin(cameraYaw);
-const dist = thirdPerson?(aiming?4:8):0.1;
-camera.position.set(player.position.x+Math.sin(cameraYaw)*dist,3,player.position.z+Math.cos(cameraYaw)*dist);
+const dist = thirdPerson ? (aiming?4:8) : 0.1;
+camera.position.set(player.position.x + Math.sin(cameraYaw)*dist,3,player.position.z + Math.cos(cameraYaw)*dist);
 camera.rotation.x = cameraPitch;
 camera.rotation.y = cameraYaw;
 renderer.render(scene,camera);}
