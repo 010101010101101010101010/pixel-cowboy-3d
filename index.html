@@ -2,46 +2,82 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,height=device-height,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="viewport"
+content="width=device-width,height=device-height,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>Mobile R6 Shooter</title>
+
 <style>
 *{margin:0;padding:0;box-sizing:border-box;touch-action:none}
 html,body{width:100%;height:100%;overflow:hidden;background:#000}
 canvas{display:block}
 
 /* UI */
-#joyBase{position:fixed;left:20px;bottom:20px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.15);z-index:10}
-#joyStick{position:absolute;left:40px;top:40px;width:40px;height:40px;border-radius:50%;background:#fff}
-.btn{position:fixed;right:20px;padding:14px;border-radius:14px;border:none;font-size:18px;z-index:10}
+#joyBase{
+  position:fixed;left:20px;bottom:20px;
+  width:120px;height:120px;border-radius:50%;
+  background:rgba(255,255,255,.15);z-index:10;
+}
+#joyStick{
+  position:absolute;left:40px;top:40px;
+  width:40px;height:40px;border-radius:50%;
+  background:#fff;
+}
+.btn{
+  position:fixed;right:20px;
+  padding:14px;border-radius:14px;
+  border:none;font-size:18px;z-index:10;
+}
 #shoot{bottom:20px}
 #aim{bottom:90px}
 #reload{bottom:160px}
 #shopBtn{top:20px}
 
-#hud{position:fixed;top:10px;left:10px;color:#fff;z-index:10}
-#hud div{background:rgba(0,0,0,.5);padding:6px 10px;border-radius:8px;margin-bottom:6px}
+#hud{
+  position:fixed;top:10px;left:10px;
+  color:white;z-index:10;
+}
+#hud div{
+  background:rgba(0,0,0,.5);
+  padding:6px 10px;border-radius:8px;
+  margin-bottom:6px;
+}
 
-#crosshair{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);font-size:28px;color:red;display:none;z-index:20}
+#crosshair{
+  position:fixed;left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  font-size:30px;color:red;
+  display:none;z-index:20;
+}
 
 /* 닉네임 */
-#nickBox{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;justify-content:center;align-items:center;color:#fff;z-index:100}
+#nickBox{
+  position:fixed;inset:0;background:#000;
+  display:flex;flex-direction:column;
+  justify-content:center;align-items:center;
+  color:white;z-index:100;
+}
 #nickBox input{font-size:20px;padding:10px}
 #nickBox button{margin-top:10px;font-size:18px}
 
 /* 상점 */
-#shop{position:fixed;inset:0;background:rgba(0,0,0,.9);color:#fff;display:none;z-index:200;padding:10px}
+#shop{
+  position:fixed;inset:0;background:rgba(0,0,0,.9);
+  color:white;display:none;z-index:200;padding:10px;
+}
 #shop button{margin:5px;padding:8px}
 </style>
 </head>
 
 <body>
 
+<!-- 닉네임 -->
 <div id="nickBox">
   <h2>닉네임</h2>
   <input id="nickInput" placeholder="닉네임">
   <button onclick="startGame()">시작</button>
 </div>
 
+<!-- UI -->
 <div id="joyBase"><div id="joyStick"></div></div>
 <button id="shoot" class="btn">🔫</button>
 <button id="aim" class="btn">🎯</button>
@@ -64,12 +100,16 @@ canvas{display:block}
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.155/build/three.min.js"></script>
 <script>
-/* ===== 기본 ===== */
-let nickname="",money=0;
-let ownedWeapons=new Set();
+/* ===== DOM ===== */
+const ammoEl = document.getElementById("ammo");
+const moneyEl = document.getElementById("money");
+
+/* ===== 상태 ===== */
+let nickname="", money=0;
+let ownedWeapons = new Set();
 let shopTab="weapons";
 
-/* ===== 무기 ===== */
+/* ===== 무기 데이터 ===== */
 const weapons={
   revolver:{price:0,ammo:6,recoil:.25,mode:"semi"},
   m1911:{price:10000,ammo:7,recoil:.1,mode:"semi"},
@@ -82,19 +122,23 @@ let currentWeapon,wepAmmo,weaponMesh,kick=0,boltReady=true;
 
 /* ===== 시작 ===== */
 function startGame(){
-  nickname=document.getElementById("nickInput").value.trim();
+  nickname = document.getElementById("nickInput").value.trim();
   if(!nickname) return;
 
-  if(nickname==="developer"){
+  ownedWeapons.clear();
+  money = 0;
+
+  if(nickname === "developer"){
     for(const k in weapons) ownedWeapons.add(k);
-    money=999999;
+    money = 999999;
     alert("개발자 모드 활성화");
   }else{
     ownedWeapons.add("revolver");
   }
+
   equipWeapon("revolver");
   updateHUD();
-  nickBox.style.display="none";
+  document.getElementById("nickBox").style.display="none";
 }
 
 /* ===== THREE ===== */
@@ -109,12 +153,20 @@ scene.add(new THREE.AmbientLight(0xffffff,.7));
 const sun=new THREE.DirectionalLight(0xffffff,1);
 sun.position.set(20,40,20);scene.add(sun);
 
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(300,300),new THREE.MeshStandardMaterial({color:0xc2a46d}));
+const ground=new THREE.Mesh(
+  new THREE.PlaneGeometry(300,300),
+  new THREE.MeshStandardMaterial({color:0xc2a46d})
+);
 ground.rotation.x=-Math.PI/2;scene.add(ground);
 
 /* ===== 캐릭터 R6 ===== */
 const player=new THREE.Group();scene.add(player);
-function box(w,h,d,c){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color:c}))}
+function box(w,h,d,c){
+  return new THREE.Mesh(
+    new THREE.BoxGeometry(w,h,d),
+    new THREE.MeshStandardMaterial({color:c})
+  );
+}
 const Y=0xffd92e,B=0x2f6bdc,G=0x2ecc71;
 const torso=box(2.2,2.2,1.2,B);torso.position.y=3;player.add(torso);
 const head=box(1.8,1.8,1.8,Y);head.position.y=4.8;player.add(head);
@@ -123,19 +175,22 @@ const lArm=box(.9,2.2,.9,Y);lArm.position.set(-1.8,3,0);player.add(lArm);
 const lLeg=box(1,2.4,1,G);lLeg.position.set(-.6,1.2,0);player.add(lLeg);
 const rLeg=box(1,2.4,1,G);rLeg.position.set(.6,1.2,0);player.add(rLeg);
 
-/* ===== 무기 ===== */
+/* ===== 무기 장착 ===== */
 function equipWeapon(id){
   if(!ownedWeapons.has(id)){
-    if(money<weapons[id].price) return alert("돈 부족");
-    money-=weapons[id].price;
+    if(money < weapons[id].price) return alert("돈 부족");
+    money -= weapons[id].price;
     ownedWeapons.add(id);
   }
   if(weaponMesh) rArm.remove(weaponMesh);
-  currentWeapon=weapons[id];
-  wepAmmo=currentWeapon.ammo;
-  boltReady=true;
+  currentWeapon = weapons[id];
+  wepAmmo = currentWeapon.ammo;
+  boltReady = true;
 
-  weaponMesh=new THREE.Mesh(new THREE.BoxGeometry(1.5,.3,.3),new THREE.MeshStandardMaterial({color:0x222}));
+  weaponMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(1.5,.3,.3),
+    new THREE.MeshStandardMaterial({color:0x222})
+  );
   weaponMesh.position.set(0,-1,1);
   rArm.add(weaponMesh);
   updateHUD();
@@ -143,14 +198,14 @@ function equipWeapon(id){
 
 /* ===== HUD ===== */
 function updateHUD(){
-  ammo.innerText="🔫 "+wepAmmo;
-  moneyEl.innerText="$"+money;
+  ammoEl.innerText = "🔫 " + wepAmmo;
+  moneyEl.innerText = "$" + money;
 }
 
-/* ===== 사격 ===== */
+/* ===== 사격/장전 ===== */
 shoot.onclick=()=>{
   if(wepAmmo<=0) return;
-  if(currentWeapon.mode==="bolt"&&!boltReady) return;
+  if(currentWeapon.mode==="bolt" && !boltReady) return;
   wepAmmo--;
   kick=currentWeapon.recoil;
   if(currentWeapon.mode==="bolt") boltReady=false;
@@ -175,8 +230,8 @@ aim.onclick=()=>{
 let mx=0,mz=0,mt=null,lt=null,jc={},ll={};
 addEventListener("touchstart",e=>{
   for(const t of e.touches){
-    if(t.clientX<innerWidth/2&&mt===null){mt=t.identifier;jc={x:t.clientX,y:t.clientY}}
-    else if(t.clientX>=innerWidth/2&&lt===null){lt=t.identifier;ll={x:t.clientX,y:t.clientY}}
+    if(t.clientX<innerWidth/2 && mt===null){mt=t.identifier;jc={x:t.clientX,y:t.clientY}}
+    else if(t.clientX>=innerWidth/2 && lt===null){lt=t.identifier;ll={x:t.clientX,y:t.clientY}}
   }
 });
 addEventListener("touchmove",e=>{
@@ -207,11 +262,11 @@ function renderShop(){
   shopList.innerHTML="";
   if(shopTab==="weapons"){
     for(const k in weapons){
-      const owned=ownedWeapons.has(k);
+      const owned = ownedWeapons.has(k);
       const b=document.createElement("button");
-      b.innerText=owned?`${k} (보유중)`:`${k} $${weapons[k].price}`;
-      b.disabled=owned;
-      b.onclick=()=>equipWeapon(k);
+      b.innerText = owned ? `${k} (보유중)` : `${k} $${weapons[k].price}`;
+      b.disabled = owned;
+      b.onclick = ()=>equipWeapon(k);
       shopList.appendChild(b);
     }
   }
