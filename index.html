@@ -1,272 +1,312 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport"
-content="width=device-width,height=device-height,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<meta name="screen-orientation" content="landscape">
-<meta name="orientation" content="landscape">
-<title>Mobile R6 Shooter</title>
+<meta charset="utf-8">
+<title>FPS STEP2</title>
+<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no">
 
 <style>
-*{margin:0;padding:0;box-sizing:border-box;touch-action:none}
-html,body{width:100%;height:100%;overflow:hidden;background:#000}
-canvas{display:block}
+html,body{
+  margin:0; padding:0;
+  overflow:hidden;
+  background:black;
+  touch-action:none;
+}
+
+/* 조준 X */
+#crosshair{
+  position:fixed;
+  left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  font-size:24px;
+  color:white;
+  pointer-events:none;
+}
+
+/* 피격 이펙트 */
+#hit{
+  position:fixed;
+  inset:0;
+  background:red;
+  opacity:0;
+  pointer-events:none;
+  transition:.1s;
+}
+
+/* 돈 표시 */
+#money{
+  position:fixed;
+  top:10px; left:10px;
+  color:#0f0;
+  font-size:18px;
+}
 
 /* 조이스틱 */
-#joyBase{position:fixed;left:5vw;bottom:12vh;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,.15);z-index:10}
-#joyStick{position:absolute;left:50px;top:50px;width:40px;height:40px;border-radius:50%;background:#fff}
-
-/* 버튼 */
-.btn{position:fixed;right:4vw;padding:14px;border-radius:14px;border:none;font-size:18px;z-index:10}
-#shoot{bottom:12vh} #aim{bottom:22vh} #reload{bottom:32vh}
-
-/* HUD */
-#hud{position:fixed;top:10px;left:10px;color:white;z-index:10}
-#hud div{background:rgba(0,0,0,.5);padding:6px 10px;border-radius:8px;margin-bottom:6px}
-
-/* 조준점 */
-#crosshair{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);font-size:30px;color:red;display:none;z-index:20}
-
-/* 하단 무기 선택 */
-#weaponBar{position:fixed;left:50%;bottom:2vh;transform:translateX(-50%);display:flex;gap:8px;z-index:15}
-.weaponSlot{background:rgba(0,0,0,.6);color:white;padding:8px 12px;border-radius:10px;font-size:14px}
-
-/* 닉네임 */
-#nickBox{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;justify-content:center;align-items:center;color:white;z-index:100}
-#nickBox input{font-size:20px;padding:10px}
-#nickBox button{margin-top:10px;font-size:18px}
+#joy{
+  position:fixed;
+  left:0; bottom:0;
+  width:50vw; height:100vh;
+}
+#stick{
+  position:absolute;
+  left:80px; bottom:80px;
+  width:80px; height:80px;
+  border-radius:50%;
+  background:rgba(255,255,255,.15);
+}
+#knob{
+  position:absolute;
+  left:20px; top:20px;
+  width:40px; height:40px;
+  border-radius:50%;
+  background:white;
+}
 </style>
 </head>
 
 <body>
+<div id="crosshair">✕</div>
+<div id="hit"></div>
+<div id="money">$0</div>
 
-<div id="nickBox">
-  <h2>닉네임</h2>
-  <input id="nickInput" placeholder="닉네임 (developer 가능)">
-  <button onclick="startGame()">시작</button>
+<div id="joy">
+  <div id="stick">
+    <div id="knob"></div>
+  </div>
 </div>
-
-<div id="joyBase"><div id="joyStick"></div></div>
-<button id="shoot" class="btn">🔫</button>
-<button id="aim" class="btn">🎯</button>
-<button id="reload" class="btn">🔁</button>
-
-<div id="hud">
-  <div id="ammo">🔫</div>
-  <div id="money">$0</div>
-  <div id="hp">❤️ 100</div>
-</div>
-
-<div id="crosshair">✖</div>
-<div id="weaponBar"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.155/build/three.min.js"></script>
 <script>
-/* ===== 상태 ===== */
-let nickname="", money=0, hp=100;
-let ownedWeapons=new Set();
-let currentWeapon,wepAmmo,weaponMesh;
-let aiming=false,kick=0;
+/* ======================
+   THREE 기본 세팅
+====================== */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x202020);
 
-/* ===== 무기 데이터 (디테일 반영) ===== */
-const weapons={
-  revolver:{price:0,ammo:6,recoil:.35,damage:35},
-  m1911:{price:10000,ammo:7,recoil:.2,damage:30},
-  shotgun:{price:15000,ammo:2,recoil:.7,damage:60},
-  m16:{price:20000,ammo:30,recoil:.18,damage:20}
-};
+const camera = new THREE.PerspectiveCamera(
+  75, innerWidth/innerHeight, 0.1, 1000
+);
+camera.position.set(0,2,5);
 
-/* ===== 시작 ===== */
-function startGame(){
-  nickname=document.getElementById("nickInput").value.trim();
-  if(!nickname) return;
-
-  ownedWeapons.clear(); money=0; hp=100;
-
-  if(nickname==="developer"){
-    Object.keys(weapons).forEach(w=>ownedWeapons.add(w));
-    money=999999;
-  }else ownedWeapons.add("revolver");
-
-  equipWeapon("revolver");
-  renderWeaponBar();
-  updateHUD();
-  nickBox.style.display="none";
-}
-
-/* ===== THREE 기본 ===== */
-const scene=new THREE.Scene();
-scene.background=new THREE.Color(0xcfa46a);
-
-const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,500);
-camera.rotation.order="YXZ";
-
-const renderer=new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(innerWidth,innerHeight);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.AmbientLight(0xffffff,.7));
-const sun=new THREE.DirectionalLight(0xffffff,1);
-sun.position.set(20,40,20); scene.add(sun);
+window.addEventListener("resize",()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+/* 빛 */
+scene.add(new THREE.HemisphereLight(0xffffff,0x444444,1));
+const dl = new THREE.DirectionalLight(0xffffff,0.6);
+dl.position.set(5,10,5);
+scene.add(dl);
 
 /* 바닥 */
-const ground=new THREE.Mesh(
-  new THREE.PlaneGeometry(500,500),
-  new THREE.MeshStandardMaterial({color:0xc2a46d})
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(200,200),
+  new THREE.MeshStandardMaterial({color:0x333333})
 );
-ground.rotation.x=-Math.PI/2; scene.add(ground);
+floor.rotation.x = -Math.PI/2;
+scene.add(floor);
 
-/* ===== 캐릭터 (R6 비율) ===== */
-const player=new THREE.Group(); scene.add(player);
-function box(w,h,d,c){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color:c}))}
-const torso=box(2.2,2.2,1.2,0x2f6bdc); torso.position.y=3; player.add(torso);
-const head=box(1.8,1.8,1.8,0xffd92e); head.position.y=4.8; player.add(head);
-const rArm=box(.9,2.2,.9,0xffd92e); rArm.position.set(1.8,3,0); player.add(rArm);
-const lArm=box(.9,2.2,.9,0xffd92e); lArm.position.set(-1.8,3,0); player.add(lArm);
-const lLeg=box(1,2.4,1,0x2ecc71); lLeg.position.set(-.6,1.2,0); player.add(lLeg);
-const rLeg=box(1,2.4,1,0x2ecc71); rLeg.position.set(.6,1.2,0); player.add(rLeg);
+/* ======================
+   플레이어
+====================== */
+const player = new THREE.Object3D();
+player.position.set(0,0,0);
+scene.add(player);
 
-/* ===== 무기 장착 (방향/반동 FIX) ===== */
-function equipWeapon(id){
-  if(!ownedWeapons.has(id)){
-    if(money<weapons[id].price) return;
-    money-=weapons[id].price;
-    ownedWeapons.add(id);
-  }
-  if(weaponMesh) rArm.remove(weaponMesh);
+let playerHP = 100;
+let money = 0;
 
-  currentWeapon=weapons[id];
-  wepAmmo=currentWeapon.ammo;
+/* ======================
+   조이스틱 (왼쪽 전용)
+====================== */
+let moveX=0, moveY=0;
+const stick = document.getElementById("stick");
+const knob = document.getElementById("knob");
 
-  weaponMesh=new THREE.Mesh(
-    new THREE.BoxGeometry(1.6,.3,.3),
-    new THREE.MeshStandardMaterial({color:0x222})
+stick.addEventListener("touchstart",e=>{
+  e.preventDefault();
+});
+stick.addEventListener("touchmove",e=>{
+  e.preventDefault();
+  const t = e.touches[0];
+  const r = stick.getBoundingClientRect();
+  const dx = t.clientX - (r.left+r.width/2);
+  const dy = t.clientY - (r.top+r.height/2);
+  const len = Math.min(40, Math.hypot(dx,dy));
+  const ang = Math.atan2(dy,dx);
+  const x = Math.cos(ang)*len;
+  const y = Math.sin(ang)*len;
+  knob.style.transform = `translate(${x}px,${y}px)`;
+  moveX = x/40;
+  moveY = y/40;
+});
+stick.addEventListener("touchend",()=>{
+  knob.style.transform="translate(0,0)";
+  moveX=moveY=0;
+});
+
+/* ======================
+   시점 드래그 (오른쪽)
+====================== */
+let yaw=0, pitch=0;
+let dragging=false;
+
+window.addEventListener("touchstart",e=>{
+  if(e.touches[0].clientX > innerWidth/2) dragging=true;
+});
+window.addEventListener("touchmove",e=>{
+  if(!dragging) return;
+  const t = e.touches[0];
+  yaw -= t.movementX*0.003;
+  pitch -= t.movementY*0.003;
+  pitch = Math.max(-1.2, Math.min(1.2,pitch));
+});
+window.addEventListener("touchend",()=>dragging=false);
+
+/* ======================
+   총 / 레이캐스트
+====================== */
+const raycaster = new THREE.Raycaster();
+const weapons = {
+  revolver:{damage:30},
+};
+let currentWeapon="revolver";
+
+/* ======================
+   적 AI
+====================== */
+const enemies=[];
+
+function createEnemy(x,z){
+  const e = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({color:0xaa3333});
+
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(1,2,1), mat
   );
-  weaponMesh.position.set(0,-1,1);
-  weaponMesh.rotation.y=Math.PI; // 왼쪽 향하던 버그 FIX
-  rArm.add(weaponMesh);
+  body.position.y=1;
+  e.add(body);
 
-  updateHUD();
+  e.position.set(x,0,z);
+  e.hp=100;
+  e.state="idle";
+  e.cool=0;
+  scene.add(e);
+  enemies.push(e);
 }
 
-/* ===== HUD ===== */
-const ammoEl=document.getElementById("ammo");
-const moneyEl=document.getElementById("money");
-const hpEl=document.getElementById("hp");
-function updateHUD(){
-  ammoEl.innerText="🔫 "+wepAmmo;
-  moneyEl.innerText="$"+money;
-  hpEl.innerText="❤️ "+hp;
+createEnemy(0,-20);
+createEnemy(6,-25);
+createEnemy(-6,-30);
+
+function updateEnemy(e){
+  if(e.state==="dead") return;
+  const d = e.position.distanceTo(player.position);
+  if(d>25) e.state="idle";
+  else if(d>10) e.state="chase";
+  else e.state="attack";
+
+  if(e.state==="chase"){
+    const dir = new THREE.Vector3()
+      .subVectors(player.position,e.position)
+      .normalize();
+    e.position.add(dir.multiplyScalar(0.03));
+  }
+
+  if(e.state==="attack" && e.cool<=0){
+    e.cool=60;
+    playerHP-=10;
+    document.getElementById("hit").style.opacity=1;
+    setTimeout(()=>hit.style.opacity=0,100);
+    if(playerHP<=0) respawn();
+  }
+  if(e.cool>0) e.cool--;
 }
 
-/* ===== 하단 무기바 ===== */
-function renderWeaponBar(){
-  weaponBar.innerHTML="";
-  ownedWeapons.forEach(id=>{
-    const s=document.createElement("div");
-    s.className="weaponSlot";
-    s.innerText=id;
-    s.onclick=()=>equipWeapon(id);
-    weaponBar.appendChild(s);
-  });
+function killEnemy(e){
+  e.state="dead";
+  scene.remove(e);
+  const r = Math.floor(Math.random()*10)+1;
+  money+=r;
+  document.getElementById("money").innerText="$"+money;
+  setTimeout(()=>{
+    e.hp=100;
+    e.state="idle";
+    e.position.set(
+      (Math.random()-0.5)*20,
+      0,
+      -20-Math.random()*20
+    );
+    scene.add(e);
+  },3000);
 }
 
-/* ===== 사격 (반동/체감 강화) ===== */
-shoot.onclick=()=>{
-  if(wepAmmo<=0) return;
-  wepAmmo--;
-  kick = aiming ? currentWeapon.recoil*0.4 : currentWeapon.recoil;
-  updateHUD();
-};
-
-/* ===== 재장전 ===== */
-reload.onclick=()=>{ wepAmmo=currentWeapon.ammo; updateHUD(); };
-
-/* ===== 조준 ===== */
-aim.onclick=()=>{
-  aiming=!aiming;
-  crosshair.style.display=aiming?"block":"none";
-  camera.fov=aiming?45:70;
-  camera.updateProjectionMatrix();
-};
-
-/* ===== 피격/체력 ===== */
-function takeDamage(dmg){
-  hp-=dmg;
-  document.body.style.background="#400";
-  setTimeout(()=>document.body.style.background="#000",120);
-  if(hp<=0){
-    hp=100;
-    player.position.set(0,0,0);
-  }
-  updateHUD();
-}
-
-/* ===== 조이스틱 + 시점 ===== */
-let mx=0,mz=0,mt=null,lt=null,jc={},ll={};
-
-addEventListener("touchstart",e=>{
-  for(const t of e.touches){
-    if(t.clientX<innerWidth/2 && mt===null){mt=t.identifier;jc={x:t.clientX,y:t.clientY}}
-    else if(t.clientX>=innerWidth/2 && lt===null){lt=t.identifier;ll={x:t.clientX,y:t.clientY}}
-  }
-});
-addEventListener("touchmove",e=>{
-  for(const t of e.touches){
-    if(t.identifier===mt){
-      const dx=t.clientX-jc.x,dy=t.clientY-jc.y;
-      mx=Math.max(-1,Math.min(1,dx/50));
-      mz=Math.max(-1,Math.min(1,dy/50));
-      joyStick.style.transform=`translate(${dx}px,${dy}px)`;
-    }
-    if(t.identifier===lt){
-      camera.rotation.y-=(t.clientX-ll.x)*0.005;
-      camera.rotation.x-=(t.clientY-ll.y)*0.005;
-      camera.rotation.x=Math.max(-1.2,Math.min(1.2,camera.rotation.x));
-      ll={x:t.clientX,y:t.clientY};
-    }
-  }
-});
-addEventListener("touchend",e=>{
-  for(const t of e.changedTouches){
-    if(t.identifier===mt){mt=null;mx=mz=0;joyStick.style.transform="translate(0,0)"}
-    if(t.identifier===lt) lt=null;
-  }
+/* ======================
+   발사
+====================== */
+window.addEventListener("touchstart",e=>{
+  if(e.touches[0].clientX < innerWidth/2) return;
+  shoot();
 });
 
-/* ===== 루프 ===== */
+function shoot(){
+  raycaster.setFromCamera({x:0,y:0},camera);
+  const objs = enemies.flatMap(e=>e.children);
+  const hits = raycaster.intersectObjects(objs);
+  if(hits.length){
+    const mesh = hits[0].object;
+    const enemy = enemies.find(e=>e.children.includes(mesh));
+    enemy.hp -= weapons[currentWeapon].damage;
+    mesh.material.color.set(0xffffff);
+    setTimeout(()=>mesh.material.color.set(0xaa3333),80);
+    if(enemy.hp<=0) killEnemy(enemy);
+  }
+}
+
+/* ======================
+   리스폰
+====================== */
+function respawn(){
+  playerHP=100;
+  player.position.set(0,0,0);
+}
+
+/* ======================
+   루프
+====================== */
 function animate(){
   requestAnimationFrame(animate);
 
-  kick*=0.6;
-  rArm.rotation.x=-kick;
+  // 이동
+  const forward = new THREE.Vector3(
+    Math.sin(yaw),0,Math.cos(yaw)
+  );
+  const right = new THREE.Vector3(
+    Math.sin(yaw+Math.PI/2),0,
+    Math.cos(yaw+Math.PI/2)
+  );
+  player.position.add(
+    forward.multiplyScalar(-moveY*0.1)
+  );
+  player.position.add(
+    right.multiplyScalar(moveX*0.1)
+  );
 
-  const forward=new THREE.Vector3();
-  camera.getWorldDirection(forward);
-  forward.y=0; forward.normalize();
-  const right=new THREE.Vector3().crossVectors(forward,new THREE.Vector3(0,1,0));
+  camera.position.copy(player.position);
+  camera.position.y+=2;
+  camera.rotation.set(pitch,yaw,0);
 
-  player.position.addScaledVector(forward,-mz*0.4);
-  player.position.addScaledVector(right,mx*0.4);
-
-  const camOffset=forward.clone().multiplyScalar(-8);
-  camOffset.y=4;
-  camera.position.copy(player.position).add(camOffset);
-  camera.lookAt(player.position.x,player.position.y+3,player.position.z);
+  enemies.forEach(updateEnemy);
 
   renderer.render(scene,camera);
 }
 animate();
-
-/* ===== 리사이즈 ===== */
-function resize(){
-  camera.aspect=innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);
-}
-addEventListener("resize",resize);
-addEventListener("orientationchange",resize);
 </script>
 </body>
 </html>
