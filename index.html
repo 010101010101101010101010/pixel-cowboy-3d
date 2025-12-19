@@ -2,84 +2,37 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Cowboy PvP</title>
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Cowboy AI Battle</title>
 <style>
-html,body{
-  margin:0;
-  padding:0;
-  overflow:hidden;
-  background:#000;
-  touch-action:none;
-}
-#ui{position:fixed;inset:0;pointer-events:none;font-family:sans-serif;color:#fff}
-#cross{
-  position:absolute;left:50%;top:50%;
-  width:22px;height:22px;margin:-11px;
-}
-#cross:before,#cross:after{
-  content:"";position:absolute;background:white
-}
-#cross:before{width:22px;height:2px;top:10px}
-#cross:after{width:2px;height:22px;left:10px}
-
-#hp{position:absolute;top:10px;left:10px;width:120px;height:14px;border:2px solid #fff}
+html,body{margin:0;padding:0;overflow:hidden;background:black;touch-action:none}
+#ui{position:fixed;inset:0;pointer-events:none;color:white;font-family:sans-serif}
+#cross{position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px}
+#cross:before,#cross:after{content:"";position:absolute;background:white}
+#cross:before{width:20px;height:2px;top:9px}
+#cross:after{width:2px;height:20px;left:9px}
+#hp{position:absolute;top:10px;left:10px;width:120px;height:14px;border:2px solid white}
 #hpIn{height:100%;background:red}
-
-#money{position:absolute;top:10px;right:10px}
-
-#bar{
-  position:absolute;bottom:0;left:0;right:0;
-  height:64px;
-  background:rgba(0,0,0,.6);
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding:0 10px;
-  pointer-events:auto;
-}
-
-#joystick{
-  position:absolute;left:0;bottom:64px;
-  width:50%;height:50%;
-  pointer-events:auto;
-}
-
-#shop{
-  position:fixed;inset:0;
-  background:rgba(0,0,0,.95);
-  display:none;
-  pointer-events:auto;
-  padding:20px;
-  overflow:auto;
-}
-
+#bar{position:absolute;bottom:0;left:0;right:0;height:60px;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:space-between;padding:0 10px;pointer-events:auto}
+#shop{position:fixed;inset:0;background:rgba(0,0,0,.95);display:none;pointer-events:auto;padding:20px}
 .item{border-bottom:1px solid #444;padding:10px}
-button{
-  background:#222;
-  color:#fff;
-  border:none;
-  padding:8px;
-  font-size:14px;
-}
+button{background:#222;color:white;border:none;padding:6px}
+#flash{position:fixed;inset:0;background:red;opacity:0;pointer-events:none}
 </style>
 </head>
 
 <body>
 <canvas id="c"></canvas>
+<div id="flash"></div>
 
 <div id="ui">
   <div id="cross"></div>
   <div id="hp"><div id="hpIn"></div></div>
-  <div id="money">$0</div>
   <div id="bar">
+    <div id="money">$0</div>
     <button onclick="openShop()">SHOP</button>
-    <button onclick="toggleView()">1P / 3P</button>
   </div>
 </div>
-
-<div id="joystick"></div>
 
 <div id="shop">
   <button onclick="closeShop()">닫기</button>
@@ -90,156 +43,124 @@ button{
 <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
 <script>
 /* ===== THREE ===== */
-const r=new THREE.WebGLRenderer({canvas:c,antialias:true});
-r.setSize(innerWidth,innerHeight);
-const s=new THREE.Scene();
-s.background=new THREE.Color(0x87ceeb);
+const renderer=new THREE.WebGLRenderer({canvas:document.getElementById("c")});
+renderer.setSize(innerWidth,innerHeight);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x87ceeb);
+const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.1,1000);
+scene.add(new THREE.AmbientLight(0xffffff,.6));
+const dl=new THREE.DirectionalLight(0xffffff,1);dl.position.set(5,10,5);scene.add(dl);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:0x228B22}));
+ground.rotation.x=-Math.PI/2;scene.add(ground);
 
-const cam=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.1,1000);
-s.add(new THREE.AmbientLight(0xffffff,.6));
-const dl=new THREE.DirectionalLight(0xffffff,1);
-dl.position.set(5,10,5);s.add(dl);
-
-const ground=new THREE.Mesh(
-  new THREE.PlaneGeometry(500,500),
-  new THREE.MeshStandardMaterial({color:0x2e8b57})
+/* ===== 플레이어 ===== */
+const player=new THREE.Mesh(
+  new THREE.BoxGeometry(2,4,1),
+  new THREE.MeshStandardMaterial({color:0x0066ff})
 );
-ground.rotation.x=-Math.PI/2;
-s.add(ground);
+player.position.y=2;
+scene.add(player);
 
-/* ===== PLAYER (Roblox R6 비율) ===== */
-const body=new THREE.Mesh(
-  new THREE.BoxGeometry(2,3,1),
-  new THREE.MeshStandardMaterial({color:0x3399ff})
+/* ===== AI 적 ===== */
+const enemy=new THREE.Mesh(
+  new THREE.BoxGeometry(2,4,1),
+  new THREE.MeshStandardMaterial({color:0xff0000})
 );
-body.position.y=1.5;
-s.add(body);
+enemy.position.set(0,2,-20);
+scene.add(enemy);
+let enemyHP=100;
 
-/* ===== AI ===== */
-const enemies=[];
-function spawnEnemy(){
-  const e=new THREE.Mesh(
-    new THREE.BoxGeometry(2,3,1),
-    new THREE.MeshStandardMaterial({color:0xff4444})
-  );
-  e.position.set(Math.random()*20-10,1.5,-20);
-  e.hp=100;
-  enemies.push(e);
-  s.add(e);
-}
-for(let i=0;i<3;i++)spawnEnemy();
-
-/* ===== CAMERA ===== */
-let firstPerson=false;
-function toggleView(){firstPerson=!firstPerson}
-
-/* ===== STATS ===== */
+/* ===== 체력 ===== */
 let hp=100;
-let money=0;
 const hpIn=document.getElementById("hpIn");
-function dmg(v){
+function damage(v){
   hp=Math.max(0,hp-v);
   hpIn.style.width=hp+"%";
-  if(hp<=0){
-    hp=100;
-    body.position.set(0,1.5,0);
-  }
+  document.getElementById("flash").style.opacity=.4;
+  setTimeout(()=>flash.style.opacity=0,120);
+  if(hp<=0)respawn();
+}
+function respawn(){
+  hp=100;
+  hpIn.style.width="100%";
+  player.position.set(0,2,0);
 }
 
-/* ===== WEAPONS ===== */
+/* ===== 돈 ===== */
+let money=0;
+function addMoney(v){
+  money+=v;
+  const m=document.getElementById("money");
+  m.innerText="+"+v+"$";
+  setTimeout(()=>m.innerText="$"+money,800);
+}
+
+/* ===== 무기 ===== */
 const weapons={
-  revolver:{price:500,damage:25,auto:false},
-  glock:{price:2000,damage:15,auto:true},
-  m1911:{price:10000,damage:30,auto:false},
-  bb:{price:100,damage:5,auto:true},
-  shotgun:{price:8000,damage:60,auto:false},
-  m16:{price:18000,damage:20,auto:false},
-  kar98:{price:15000,damage:80,auto:false}
+  revolver:{price:500,damage:25},
+  glock:{price:2000,damage:15},
+  shotgun:{price:8000,damage:60}
 };
 let owned={revolver:true};
 let current="revolver";
 
-/* ===== SHOP ===== */
+/* ===== 상점 ===== */
 function openShop(){
   shop.style.display="block";
   items.innerHTML="";
-  for(const k in weapons){
+  for(let k in weapons){
     const w=weapons[k];
-    const d=document.createElement("div");
-    d.className="item";
-    d.innerHTML=`
+    const div=document.createElement("div");
+    div.className="item";
+    div.innerHTML=`
       ${k} - ${w.price}$ 
       ${owned[k]?"(보유)":"<button>구매</button>"}
     `;
     if(!owned[k]){
-      d.querySelector("button").onclick=()=>{
+      div.querySelector("button").onclick=()=>{
         if(money>=w.price){
           money-=w.price;
           owned[k]=true;
           current=k;
-          updateMoney();
+          document.getElementById("money").innerText="$"+money;
           openShop();
         }
       };
     }
-    items.appendChild(d);
+    items.appendChild(div);
   }
 }
 function closeShop(){shop.style.display="none"}
-function updateMoney(){moneyEl.innerText="$"+money}
-const moneyEl=document.getElementById("money");
 
-/* ===== JOYSTICK ===== */
-let jActive=false,jX=0,jY=0;
-joystick.addEventListener("pointerdown",e=>jActive=true);
-addEventListener("pointerup",()=>jActive=false);
-addEventListener("pointermove",e=>{
-  if(jActive){
-    jX=(e.clientX/(innerWidth/2))-0.5;
-    jY=(e.clientY/(innerHeight))-0.5;
-  }
-});
-
-/* ===== SHOOT ===== */
+/* ===== 사격 ===== */
 const ray=new THREE.Raycaster();
 addEventListener("pointerdown",e=>{
-  if(e.clientX<innerWidth/2)return;
-  ray.setFromCamera({x:0,y:0},cam);
-  enemies.forEach(en=>{
-    if(ray.intersectObject(en).length){
-      en.hp-=weapons[current].damage;
-      if(en.hp<=0){
-        money+=Math.floor(Math.random()*10)+1;
-        updateMoney();
-        en.hp=100;
-        en.position.set(Math.random()*20-10,1.5,-20);
-      }
+  ray.setFromCamera({x:0,y:0},camera);
+  const hit=ray.intersectObject(enemy);
+  if(hit.length){
+    enemyHP-=weapons[current].damage;
+    if(enemyHP<=0){
+      addMoney(Math.floor(Math.random()*10)+1);
+      enemyHP=100;
+      enemy.position.set(Math.random()*20-10,2,-20);
     }
-  });
+  }
 });
 
-/* ===== LOOP ===== */
+/* ===== AI 로직 ===== */
+setInterval(()=>{
+  enemy.lookAt(player.position);
+  if(enemy.position.distanceTo(player.position)<15){
+    damage(5);
+  }
+},1000);
+
+/* ===== 루프 ===== */
 function loop(){
   requestAnimationFrame(loop);
-
-  body.position.x+=jX*0.2;
-  body.position.z+=jY*0.2;
-
-  enemies.forEach(en=>{
-    en.lookAt(body.position);
-    if(en.position.distanceTo(body.position)<10){
-      dmg(0.1);
-    }
-  });
-
-  if(firstPerson){
-    cam.position.copy(body.position).add(new THREE.Vector3(0,1.5,0));
-  }else{
-    cam.position.lerp(body.position.clone().add(new THREE.Vector3(0,6,10)),.1);
-  }
-  cam.lookAt(body.position);
-
-  r.render(s,cam);
+  camera.position.lerp(player.position.clone().add(new THREE.Vector3(0,6,10)),.1);
+  camera.lookAt(player.position);
+  renderer.render(scene,camera);
 }
 loop();
 </script>
