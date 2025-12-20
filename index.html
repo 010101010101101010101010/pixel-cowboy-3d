@@ -2,168 +2,171 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Cowboy AI Battle</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Mobile FPS All-in-One</title>
 <style>
-html,body{margin:0;padding:0;overflow:hidden;background:black;touch-action:none}
-#ui{position:fixed;inset:0;pointer-events:none;color:white;font-family:sans-serif}
-#cross{position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px}
-#cross:before,#cross:after{content:"";position:absolute;background:white}
-#cross:before{width:20px;height:2px;top:9px}
-#cross:after{width:2px;height:20px;left:9px}
-#hp{position:absolute;top:10px;left:10px;width:120px;height:14px;border:2px solid white}
-#hpIn{height:100%;background:red}
-#bar{position:absolute;bottom:0;left:0;right:0;height:60px;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:space-between;padding:0 10px;pointer-events:auto}
-#shop{position:fixed;inset:0;background:rgba(0,0,0,.95);display:none;pointer-events:auto;padding:20px}
-.item{border-bottom:1px solid #444;padding:10px}
-button{background:#222;color:white;border:none;padding:6px}
-#flash{position:fixed;inset:0;background:red;opacity:0;pointer-events:none}
+html,body{margin:0;overflow:hidden;background:#000;touch-action:none}
+canvas{display:block}
+
+/* UI */
+#cross{position:fixed;left:50%;top:50%;width:18px;height:18px;margin:-9px;pointer-events:none}
+#cross:before,#cross:after{content:"";position:absolute;background:#fff}
+#cross:before{width:18px;height:2px;top:8px}
+#cross:after{width:2px;height:18px;left:8px}
+
+#joystick{position:fixed;left:16px;bottom:16px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.15)}
+#stick{position:absolute;left:40px;top:40px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.6)}
+
+#fire{position:fixed;right:16px;bottom:36px;width:90px;height:90px;border-radius:50%;background:#e74c3c;opacity:.65}
+#gunbar{position:fixed;left:50%;bottom:8px;transform:translateX(-50%);display:flex;gap:6px}
+#gunbar button{background:#222;color:#fff;border:0;padding:8px 10px}
+#shopBtn{position:fixed;right:16px;top:16px;background:#222;color:#fff;border:0;padding:8px}
+#money{position:fixed;left:16px;top:16px;color:#fff;font-family:sans-serif}
+#shop{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;color:#fff;font-family:sans-serif}
+#shop .panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#111;padding:16px}
+#shop button{margin:4px}
 </style>
 </head>
-
 <body>
-<canvas id="c"></canvas>
-<div id="flash"></div>
 
-<div id="ui">
-  <div id="cross"></div>
-  <div id="hp"><div id="hpIn"></div></div>
-  <div id="bar">
-    <div id="money">$0</div>
-    <button onclick="openShop()">SHOP</button>
-  </div>
-</div>
+<canvas id="c"></canvas>
+<div id="cross"></div>
+
+<div id="joystick"><div id="stick"></div></div>
+<div id="fire"></div>
+
+<div id="gunbar"></div>
+<button id="shopBtn">SHOP</button>
+<div id="money">$1000</div>
 
 <div id="shop">
-  <button onclick="closeShop()">닫기</button>
-  <h2>무기 상점</h2>
-  <div id="items"></div>
+  <div class="panel">
+    <h3>무기 상점</h3>
+    <div id="shopList"></div>
+    <button onclick="toggleShop()">닫기</button>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
 <script>
-/* ===== THREE ===== */
-const renderer=new THREE.WebGLRenderer({canvas:document.getElementById("c")});
+/* ===== THREE BASIC ===== */
+const renderer=new THREE.WebGLRenderer({canvas:c});
 renderer.setSize(innerWidth,innerHeight);
-const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x87ceeb);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x87ceeb);
 const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.1,1000);
-scene.add(new THREE.AmbientLight(0xffffff,.6));
-const dl=new THREE.DirectionalLight(0xffffff,1);dl.position.set(5,10,5);scene.add(dl);
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:0x228B22}));
-ground.rotation.x=-Math.PI/2;scene.add(ground);
+scene.add(new THREE.AmbientLight(0xffffff,1));
 
-/* ===== 플레이어 ===== */
-const player=new THREE.Mesh(
-  new THREE.BoxGeometry(2,4,1),
-  new THREE.MeshStandardMaterial({color:0x0066ff})
-);
-player.position.y=2;
-scene.add(player);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(500,500),
+  new THREE.MeshStandardMaterial({color:0x3a7f3a}));
+ground.rotation.x=-Math.PI/2; scene.add(ground);
 
-/* ===== AI 적 ===== */
-const enemy=new THREE.Mesh(
-  new THREE.BoxGeometry(2,4,1),
-  new THREE.MeshStandardMaterial({color:0xff0000})
-);
-enemy.position.set(0,2,-20);
-scene.add(enemy);
-let enemyHP=100;
+/* ===== PLAYER ===== */
+const player=new THREE.Object3D(); player.position.y=1.6; scene.add(player);
+let yaw=0,pitch=0;
 
-/* ===== 체력 ===== */
-let hp=100;
-const hpIn=document.getElementById("hpIn");
-function damage(v){
-  hp=Math.max(0,hp-v);
-  hpIn.style.width=hp+"%";
-  document.getElementById("flash").style.opacity=.4;
-  setTimeout(()=>flash.style.opacity=0,120);
-  if(hp<=0)respawn();
-}
-function respawn(){
-  hp=100;
-  hpIn.style.width="100%";
-  player.position.set(0,2,0);
-}
+/* ===== JOYSTICK ===== */
+let mx=0,my=0;
+const joy=document.getElementById('joystick'),stick=document.getElementById('stick');
+joy.addEventListener('touchmove',e=>{
+  const t=e.touches[0],r=joy.getBoundingClientRect();
+  const dx=t.clientX-(r.left+r.width/2), dy=t.clientY-(r.top+r.height/2);
+  mx=Math.max(-1,Math.min(1,dx/40)); my=Math.max(-1,Math.min(1,dy/40));
+  stick.style.transform=`translate(${mx*30}px,${my*30}px)`;
+});
+joy.addEventListener('touchend',()=>{mx=my=0;stick.style.transform='translate(0,0)'});
 
-/* ===== 돈 ===== */
-let money=0;
-function addMoney(v){
-  money+=v;
-  const m=document.getElementById("money");
-  m.innerText="+"+v+"$";
-  setTimeout(()=>m.innerText="$"+money,800);
-}
+/* ===== LOOK (RIGHT HALF) ===== */
+document.addEventListener('touchmove',e=>{
+  if(e.touches[0].clientX<innerWidth/2) return;
+  yaw-=e.movementX*0.002; pitch-=e.movementY*0.002;
+  pitch=Math.max(-1.3,Math.min(1.3,pitch));
+},{passive:false});
 
-/* ===== 무기 ===== */
-const weapons={
-  revolver:{price:500,damage:25},
-  glock:{price:2000,damage:15},
-  shotgun:{price:8000,damage:60}
+/* ===== GUNS ===== */
+let money=1000;
+const moneyEl=document.getElementById('money');
+function setMoney(v){ money=v; moneyEl.textContent=`$${money}`; }
+
+const GUNS={
+  revolver:{name:'Revolver',price:500,rate:500,auto:false,speed:1.2},
+  glock:{name:'Glock',price:2000,rate:120,auto:true,speed:1.4},
+  bbgun:{name:'BB Gun',price:100,rate:50,auto:true,speed:1.6}
 };
 let owned={revolver:true};
-let current="revolver";
+let current='revolver';
 
-/* ===== 상점 ===== */
-function openShop(){
-  shop.style.display="block";
-  items.innerHTML="";
-  for(let k in weapons){
-    const w=weapons[k];
-    const div=document.createElement("div");
-    div.className="item";
-    div.innerHTML=`
-      ${k} - ${w.price}$ 
-      ${owned[k]?"(보유)":"<button>구매</button>"}
-    `;
-    if(!owned[k]){
-      div.querySelector("button").onclick=()=>{
-        if(money>=w.price){
-          money-=w.price;
-          owned[k]=true;
-          current=k;
-          document.getElementById("money").innerText="$"+money;
-          openShop();
-        }
-      };
-    }
-    items.appendChild(div);
-  }
+const gunbar=document.getElementById('gunbar');
+function renderGunbar(){
+  gunbar.innerHTML='';
+  Object.keys(owned).forEach(k=>{
+    const b=document.createElement('button');
+    b.textContent=GUNS[k].name;
+    b.onclick=()=>current=k;
+    gunbar.appendChild(b);
+  });
 }
-function closeShop(){shop.style.display="none"}
+renderGunbar();
 
-/* ===== 사격 ===== */
-const ray=new THREE.Raycaster();
-addEventListener("pointerdown",e=>{
-  ray.setFromCamera({x:0,y:0},camera);
-  const hit=ray.intersectObject(enemy);
-  if(hit.length){
-    enemyHP-=weapons[current].damage;
-    if(enemyHP<=0){
-      addMoney(Math.floor(Math.random()*10)+1);
-      enemyHP=100;
-      enemy.position.set(Math.random()*20-10,2,-20);
-    }
-  }
-});
+/* ===== SHOOT ===== */
+const bullets=[]; let canShoot=true,firing=false;
+function shoot(){
+  if(!canShoot) return; canShoot=false;
+  const g=GUNS[current];
+  const bullet=new THREE.Mesh(
+    new THREE.SphereGeometry(.08,8,8),
+    new THREE.MeshStandardMaterial({color:0xffff00})
+  );
+  const dir=new THREE.Vector3(); camera.getWorldDirection(dir);
+  bullet.position.copy(camera.position);
+  bullet.userData={vel:dir.multiplyScalar(g.speed),life:100};
+  scene.add(bullet); bullets.push(bullet);
+  setTimeout(()=>canShoot=true,g.rate);
+}
+document.getElementById('fire').addEventListener('touchstart',()=>{firing=true;shoot()});
+document.getElementById('fire').addEventListener('touchend',()=>firing=false);
 
-/* ===== AI 로직 ===== */
-setInterval(()=>{
-  enemy.lookAt(player.position);
-  if(enemy.position.distanceTo(player.position)<15){
-    damage(5);
-  }
-},1000);
+/* ===== SHOP ===== */
+const shop=document.getElementById('shop');
+const shopList=document.getElementById('shopList');
+function toggleShop(){
+  shop.style.display=shop.style.display==='none'?'block':'none';
+}
+document.getElementById('shopBtn').onclick=()=>{
+  shopList.innerHTML='';
+  Object.keys(GUNS).forEach(k=>{
+    if(owned[k]) return;
+    const btn=document.createElement('button');
+    btn.textContent=`${GUNS[k].name} - $${GUNS[k].price}`;
+    btn.onclick=()=>{
+      if(money>=GUNS[k].price){
+        setMoney(money-GUNS[k].price);
+        owned[k]=true; renderGunbar();
+      }
+    };
+    shopList.appendChild(btn);
+  });
+  toggleShop();
+};
 
-/* ===== 루프 ===== */
+/* ===== LOOP ===== */
 function loop(){
   requestAnimationFrame(loop);
-  camera.position.lerp(player.position.clone().add(new THREE.Vector3(0,6,10)),.1);
-  camera.lookAt(player.position);
+  const dir=new THREE.Vector3(
+    Math.sin(yaw)*my+Math.cos(yaw)*mx,0,
+    Math.cos(yaw)*my-Math.sin(yaw)*mx
+  );
+  player.position.add(dir.multiplyScalar(.15));
+  camera.position.copy(player.position);
+  camera.rotation.set(pitch,yaw,0);
+
+  if(GUNS[current].auto && firing) shoot();
+  for(let i=bullets.length-1;i>=0;i--){
+    const b=bullets[i]; b.position.add(b.userData.vel);
+    if(--b.userData.life<=0){ scene.remove(b); bullets.splice(i,1); }
+  }
   renderer.render(scene,camera);
 }
 loop();
 </script>
 </body>
 </html>
-<script src="guns.js"></script>
