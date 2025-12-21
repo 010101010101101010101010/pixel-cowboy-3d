@@ -1,164 +1,138 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>FPS TEST</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>FPS Gun Generator</title>
 <style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    touch-action: none;
-    background: #222;
-  }
-
-  canvas {
-    display: block;
-  }
-
-  /* Joystick */
-  #joy {
-    position: fixed;
-    left: 20px;
-    bottom: 20px;
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.1);
-  }
-  #stick {
-    position: absolute;
-    left: 40px;
-    top: 40px;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.8);
-  }
-
-  /* Crosshair */
-  #cross {
-    position: fixed;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%,-50%);
-    color: red;
-    font-size: 24px;
-    pointer-events: none;
-  }
+body{margin:0;overflow:hidden;background:#111;color:#fff;font-family:sans-serif}
+#ui{position:fixed;top:10px;left:10px;z-index:10}
+button{padding:6px 10px;margin:2px}
+#cross{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);color:red;font-size:20px}
+#joy{position:fixed;left:20px;bottom:20px;width:120px;height:120px;border-radius:50%;background:#333;opacity:.7}
+#stick{width:50px;height:50px;border-radius:50%;background:#777;position:absolute;left:35px;top:35px}
 </style>
 </head>
 <body>
 
-<canvas id="c"></canvas>
-
-<div id="joy">
-  <div id="stick"></div>
+<div id="ui">
+<div id="info"></div>
+<button onclick="toggleAI()">Dummy AI</button>
 </div>
 
-<div id="cross">+</div>
+<div id="cross">✕</div>
+<div id="joy"><div id="stick"></div></div>
+<canvas id="c"></canvas>
 
 <script>
-/* ===== Canvas ===== */
-const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d");
-function resize() {
-  canvas.width = innerWidth;
-  canvas.height = innerHeight;
+/* ---------- SETUP ---------- */
+const c=document.getElementById("c"),ctx=c.getContext("2d");
+resize(); window.onresize=resize;
+function resize(){c.width=innerWidth;c.height=innerHeight}
+
+/* ---------- PLAYER ---------- */
+let name=prompt("Nickname?");
+let dev=name&&name.toLowerCase()==="developer";
+let money=dev?9999999:100;
+let px=0,py=0,rot=0;
+
+/* ---------- GUN SYSTEM ---------- */
+const bases=[
+ {n:"Glock 17",d:28,r:600,p:500},
+ {n:"M1911",d:40,r:350,p:1000},
+ {n:"AK-47",d:42,r:600,p:2500},
+ {n:"M16",d:33,r:800,p:3000},
+ {n:"Kar98k",d:90,r:60,p:4000}
+];
+const barrels=[{n:"Short",-d:-5},{n:"Long",d:5}];
+const ammo=[{n:"FMJ",d:0},{n:"AP",d:5},{n:"HP",d:8}];
+
+function genGun(){
+ let b=bases[Math.floor(Math.random()*bases.length)];
+ let br=barrels[Math.floor(Math.random()*barrels.length)];
+ let a=ammo[Math.floor(Math.random()*ammo.length)];
+ return {
+  name:`${b.n} | ${br.n} | ${a.n}`,
+  dmg:b.d+br.d+a.d
+ };
 }
-resize();
-addEventListener("resize", resize);
+let gun=genGun();
 
-/* ===== Player ===== */
-let px = 0, pz = 0;
-let angle = 0;
-let speedX = 0, speedZ = 0;
+/* ---------- DUMMY ---------- */
+let dummy={x:200,y:0,hp:100};
+let aiOn=true;
 
-/* ===== Joystick ===== */
-const joy = document.getElementById("joy");
-const stick = document.getElementById("stick");
-let joyActive = false;
-let joyCenter = {x:0,y:0};
+/* ---------- JOYSTICK ---------- */
+let joy=document.getElementById("joy"),stick=document.getElementById("stick");
+let jx=0,jy=0,drag=false;
+joy.ontouchstart=e=>drag=true;
+joy.ontouchend=e=>{drag=false;jx=jy=0;stick.style.left="35px";stick.style.top="35px";}
+joy.ontouchmove=e=>{
+ let r=joy.getBoundingClientRect();
+ let x=e.touches[0].clientX-r.left-60;
+ let y=e.touches[0].clientY-r.top-60;
+ let d=Math.hypot(x,y);
+ if(d>40){x*=40/d;y*=40/d}
+ jx=x/40;jy=y/40;
+ stick.style.left=35+x+"px";stick.style.top=35+y+"px";
+}
 
-joy.addEventListener("touchstart", e => {
-  joyActive = true;
-  const r = joy.getBoundingClientRect();
-  joyCenter.x = r.left + r.width/2;
-  joyCenter.y = r.top + r.height/2;
-});
+/* ---------- LOOK ---------- */
+let lastX=null;
+c.ontouchmove=e=>{
+ if(e.touches.length==1){
+  if(lastX!=null) rot+=(e.touches[0].clientX-lastX)*0.005;
+  lastX=e.touches[0].clientX;
+ }
+}
+c.ontouchend=e=>lastX=null;
 
-joy.addEventListener("touchmove", e => {
-  if (!joyActive) return;
-  const t = e.touches[0];
-  let dx = t.clientX - joyCenter.x;
-  let dy = t.clientY - joyCenter.y;
-  const max = 40;
-  const dist = Math.hypot(dx,dy);
-  if (dist > max) {
-    dx = dx/dist * max;
-    dy = dy/dist * max;
+/* ---------- SHOOT ---------- */
+c.ontouchstart=e=>{
+ let dx=dummy.x-px,dy=dummy.y-py;
+ let dist=Math.hypot(dx,dy);
+ if(dist<300){
+  dummy.hp-=gun.dmg;
+  if(dummy.hp<=0){
+   let reward=Math.floor(Math.random()*10)+1;
+   money+=reward;
+   dummy.hp=100;
   }
-  stick.style.left = 40 + dx + "px";
-  stick.style.top  = 40 + dy + "px";
-  speedX = dx / max;
-  speedZ = dy / max;
-});
+ }
+}
 
-joy.addEventListener("touchend", e => {
-  joyActive = false;
-  speedX = speedZ = 0;
-  stick.style.left = "40px";
-  stick.style.top  = "40px";
-});
+/* ---------- AI TOGGLE ---------- */
+function toggleAI(){aiOn=!aiOn}
 
-/* ===== Camera Drag (Right side only) ===== */
-let look = false;
-let lastX = 0;
-addEventListener("touchstart", e => {
-  const t = e.touches[0];
-  if (t.clientX > innerWidth/2) {
-    look = true;
-    lastX = t.clientX;
-  }
-});
-addEventListener("touchmove", e => {
-  if (!look) return;
-  const t = e.touches[0];
-  const dx = t.clientX - lastX;
-  angle += dx * 0.005;
-  lastX = t.clientX;
-});
-addEventListener("touchend", ()=> look=false);
+/* ---------- LOOP ---------- */
+function loop(){
+ px+=jx*2*Math.cos(rot)-jy*2*Math.sin(rot);
+ py+=jx*2*Math.sin(rot)+jy*2*Math.cos(rot);
 
-/* ===== Loop ===== */
-function loop() {
-  px += Math.cos(angle) * speedZ * 5;
-  pz += Math.sin(angle) * speedZ * 5;
-  px += Math.cos(angle + Math.PI/2) * speedX * 5;
-  pz += Math.sin(angle + Math.PI/2) * speedX * 5;
+ ctx.fillStyle="#2b2b2b";ctx.fillRect(0,0,c.width,c.height);
 
-  ctx.fillStyle = "#222";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+ // ground grid
+ ctx.strokeStyle="#333";
+ for(let i=-500;i<500;i+=50){
+  ctx.beginPath();
+  ctx.moveTo(c.width/2+i-rot*50,0);
+  ctx.lineTo(c.width/2+i-rot*50,c.height);
+  ctx.stroke();
+ }
 
-  // Grid floor
-  ctx.strokeStyle = "#333";
-  for (let i=-50;i<50;i++) {
-    ctx.beginPath();
-    ctx.moveTo(canvas.width/2 - px + i*50, 0);
-    ctx.lineTo(canvas.width/2 - px + i*50, canvas.height);
-    ctx.stroke();
+ // dummy
+ let dx=dummy.x-px,dy=dummy.y-py;
+ let sx=c.width/2+dx*Math.cos(rot)-dy*Math.sin(rot);
+ let sy=c.height/2+dx*Math.sin(rot)+dy*Math.cos(rot);
+ ctx.fillStyle="orange";
+ ctx.fillRect(sx-20,sy-40,40,80);
 
-    ctx.beginPath();
-    ctx.moveTo(0, canvas.height/2 - pz + i*50);
-    ctx.lineTo(canvas.width, canvas.height/2 - pz + i*50);
-    ctx.stroke();
-  }
+ document.getElementById("info").innerHTML=
+  `${gun.name}<br>$${money}${dev?"<br>DEV":""}`;
 
-  requestAnimationFrame(loop);
+ requestAnimationFrame(loop);
 }
 loop();
 </script>
-
 </body>
 </html>
