@@ -1,58 +1,25 @@
-import { Player } from "./player.js";
-import { Dummy } from "./dummy.js";
-import { setupInput, input } from "./input.js";
-import { setupUI } from "./ui.js";
-import { fov } from "./camera.js";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>FPS Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
 
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+<canvas id="game"></canvas>
 
-canvas.width = innerWidth;
-canvas.height = innerHeight;
+<div id="ui">
+  <button id="up">↑</button>
+  <button id="left">←</button>
+  <button id="down">↓</button>
+  <button id="right">→</button>
 
-const player = new Player();
-const dummy = new Dummy();
+  <button id="fire">FIRE</button>
+  <button id="aim">AIM</button>
+</div>
 
-setupInput();
-setupUI();
-
-function update() {
-  if (input.up) player.y -= player.speed;
-  if (input.down) player.y += player.speed;
-  if (input.left) player.x -= player.speed;
-  if (input.right) player.x += player.speed;
-
-  if (input.fire) {
-    dummy.hit(player.shoot());
-  }
-
-  dummy.update();
-}
-
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // 크로스헤어
-  ctx.strokeStyle = "white";
-  ctx.beginPath();
-  ctx.moveTo(canvas.width/2 - 10, canvas.height/2);
-  ctx.lineTo(canvas.width/2 + 10, canvas.height/2);
-  ctx.stroke();
-
-  // 더미
-  ctx.fillStyle = dummy.hitFlash ? "red" : "gray";
-  ctx.fillRect(canvas.width/2 - 25, canvas.height/2 - 150, 50, 80);
-
-  // 디버그
-  ctx.fillStyle = "white";
-  ctx.fillText("FOV: " + fov, 20, 20);
-  ctx.fillText("Dummy HP: " + dummy.hp, 20, 40);
-}
-
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
-
-loop();
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
