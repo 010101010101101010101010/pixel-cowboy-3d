@@ -1,101 +1,182 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Mobile FPS</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>GLOCK FPS</title>
 <style>
-html,body{margin:0;overflow:hidden;background:#111;color:white;font-family:Arial}
+html,body{margin:0;overflow:hidden;background:#000}
+canvas{display:block}
 #ui{position:fixed;inset:0;pointer-events:none}
-#crosshair{
- position:absolute;left:50%;top:50%;
- transform:translate(-50%,-50%);
- font-size:24px
-}
-.btn{
- position:absolute;width:80px;height:80px;
- border-radius:50%;background:rgba(255,255,255,0.15);
- text-align:center;line-height:80px;font-size:18px;
- pointer-events:auto;user-select:none
-}
-#fire{right:20px;bottom:40px}
-#reload{right:120px;bottom:40px}
-#joy{
- left:20px;bottom:40px;width:120px;height:120px;
- background:rgba(255,255,255,0.1)
-}
+#cross{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#fff;font-size:22px}
+.btn{position:absolute;border-radius:50%;background:rgba(255,255,255,.18);pointer-events:auto}
+#joy{left:20px;bottom:20px;width:120px;height:120px}
+#fire{right:30px;bottom:40px;width:90px;height:90px}
+#ads{right:140px;bottom:60px;width:70px;height:70px}
+#ammo{position:absolute;right:20px;top:20px;color:#fff;font-size:18px}
 </style>
 </head>
 <body>
+
 <canvas id="c"></canvas>
 
 <div id="ui">
-  <div id="crosshair">+</div>
-  <div id="joy" class="btn">MOVE</div>
-  <div id="fire" class="btn">FIRE</div>
-  <div id="reload" class="btn">R</div>
+ <div id="cross">+</div>
+ <div id="ammo"></div>
+ <div id="joy" class="btn"></div>
+ <div id="fire" class="btn"></div>
+ <div id="ads" class="btn"></div>
 </div>
 
 <script>
-const canvas = c, ctx = canvas.getContext("2d");
-resize(); window.onresize = resize;
+const cv=c,ctx=cv.getContext("2d");
+function resize(){cv.width=innerWidth;cv.height=innerHeight}
+onresize=resize; resize();
 
-let player = {x:0,z:0,rot:0,ammo:15};
-let dummy = {x:0,z:-5,hp:100,hit:0};
-
-function resize(){
- canvas.width=innerWidth;
- canvas.height=innerHeight;
+// ===== AUDIO =====
+const ac=new (window.AudioContext||window.webkitAudioContext)();
+function snd(f,d){
+ let o=ac.createOscillator(),g=ac.createGain();
+ o.frequency.value=f; o.connect(g); g.connect(ac.destination);
+ o.start(); g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);
 }
 
-function drawGrid(){
- ctx.strokeStyle="#222";
- for(let i=-20;i<=20;i++){
-  ctx.beginPath();
-  ctx.moveTo(canvas.width/2+i*40,0);
-  ctx.lineTo(canvas.width/2+i*40,canvas.height);
-  ctx.stroke();
+// ===== PLAYER =====
+let p={x:0,z:0,rot:0,vy:0,recoil:0,ads:0};
+let move=false;
+
+// ===== GLOCK =====
+let gun={ammo:17,max:17,reload:false,slide:0,spread:0};
+
+// ===== DUMMY =====
+let d={x:0,z:-12,hp:100,hit:0,dmg:0,resp:0};
+
+// ===== LOOK =====
+let lookX=null;
+cv.ontouchstart=e=>{
+ if(e.touches[0].clientX>innerWidth/2) lookX=e.touches[0].clientX;
+}
+cv.ontouchmove=e=>{
+ if(lookX){
+  let dx=e.touches[0].clientX-lookX;
+  p.rot+=dx*0.003;
+  lookX=e.touches[0].clientX;
  }
 }
+cv.ontouchend=()=>lookX=null;
 
-function drawGun(){
- ctx.fillStyle="#222";
- ctx.fillRect(canvas.width/2-60,canvas.height-120,120,80);
- ctx.fillStyle="#444";
- ctx.fillRect(canvas.width/2-30,canvas.height-150,60,30);
-}
+// ===== MOVE =====
+joy.ontouchstart=()=>move=true;
+joy.ontouchend=()=>move=false;
 
-function drawDummy(){
- let dz = dummy.z - player.z;
- let size = 300/Math.abs(dz);
- let x = canvas.width/2 + dummy.hit*5;
- let y = canvas.height/2 - size/2;
- ctx.fillStyle="red";
- ctx.fillRect(x-size/4,y,size/2,size);
-}
+// ===== ADS =====
+ads.ontouchstart=()=>p.ads=1;
+ads.ontouchend=()=>p.ads=0;
 
-function shoot(){
- if(player.ammo<=0) return;
- player.ammo--;
- dummy.hp-=10;
- dummy.hit=5;
-}
+// ===== FIRE =====
+fire.ontouchstart=()=>{
+ if(gun.reload) return;
+ if(gun.ammo<=0){ snd(200,0.1); reload(); return; }
 
+ gun.ammo--;
+ snd(900,0.05);
+ p.recoil=0.25;
+ gun.spread+=0.04;
+
+ d.hp-=25;
+ d.hit=1;
+ d.dmg=25;
+ if(d.hp<=0){ d.resp=60; }
+};
+
+// ===== RELOAD =====
 function reload(){
- setTimeout(()=>player.ammo=15,800);
+ if(gun.reload) return;
+ gun.reload=true;
+ snd(300,0.3);
+ setTimeout(()=>gun.slide=1,150);
+ setTimeout(()=>{
+  gun.ammo=gun.max;
+  gun.slide=0;
+  gun.reload=false;
+ },900);
 }
 
-fire.onclick=shoot;
-reload.onclick=reload;
-
+// ===== LOOP =====
 function loop(){
- ctx.clearRect(0,0,canvas.width,canvas.height);
+ ctx.clearRect(0,0,cv.width,cv.height);
+
+ if(move){
+  p.x+=Math.sin(p.rot)*0.12;
+  p.z+=Math.cos(p.rot)*0.12;
+ }
+
+ p.recoil*=0.85;
+ gun.spread*=0.9;
+ d.hit*=0.85;
+
+ if(d.resp>0){
+  d.resp--;
+  if(d.resp==0) d.hp=100;
+ }
+
  drawGrid();
  drawDummy();
  drawGun();
- dummy.hit*=0.9;
+
+ ammo.innerText=`GLOCK 17 | ${gun.ammo}/${gun.max}`;
  requestAnimationFrame(loop);
 }
+
+// ===== DRAW =====
+function drawGrid(){
+ ctx.strokeStyle="#222";
+ for(let i=-40;i<40;i++){
+  let x=cv.width/2+i*50-(p.x*50)%50;
+  ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,cv.height);ctx.stroke();
+ }
+}
+
+function drawDummy(){
+ if(d.resp>0) return;
+ let dx=d.x-p.x, dz=d.z-p.z;
+ let dist=Math.cos(p.rot)*dz-Math.sin(p.rot)*dx;
+ if(dist<=0) return;
+ let s=500/dist*(1+p.ads*0.5);
+ let sx=cv.width/2+Math.sin(p.rot)*dz*60+d.hit*20;
+ let sy=cv.height/2-s/2;
+
+ ctx.fillStyle="darkred";
+ ctx.fillRect(sx-s/4,sy,s/2,s);
+ ctx.fillStyle="red";
+ ctx.fillText("-"+d.dmg,sx-10,sy-10);
+}
+
+function drawGun(){
+ let zoom=1+p.ads*0.4;
+ let y=cv.height-150+p.recoil*50;
+ ctx.save();
+ ctx.translate(cv.width/2,y);
+ ctx.scale(zoom,zoom);
+
+ // body
+ ctx.fillStyle="#111";
+ ctx.fillRect(-90,0,180,110);
+
+ // slide
+ ctx.fillStyle="#333";
+ ctx.fillRect(-35,-40+gun.slide*18,70,40);
+
+ // muzzle flash
+ if(p.recoil>0.1){
+  ctx.fillStyle="orange";
+  ctx.beginPath();
+  ctx.arc(0,-20,12,0,Math.PI*2);
+  ctx.fill();
+ }
+ ctx.restore();
+}
+
 loop();
 </script>
 </body>
